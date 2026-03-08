@@ -21,21 +21,16 @@ st.markdown("""
     </style>
     """, unsafe_allow_html=True)
 
-# --- FUNÇÃO DE BLOQUEIO (TERÇA ANTES DO 1º SÁBADO) ---
+# --- FUNÇÃO DE BLOQUEIO TEMPORAL ---
 def is_sistema_bloqueado():
     hoje = datetime.now().date()
-    # Encontrar o primeiro dia do mês atual
     primeiro_dia = hoje.replace(day=1)
-    # Encontrar o primeiro sábado (Sábado = 5 no weekday onde Seg=0)
     dias_ate_sabado = (5 - primeiro_dia.weekday() + 7) % 7
     primeiro_sabado = primeiro_dia + timedelta(days=dias_ate_sabado)
-    
-    # A terça-feira que antecede o primeiro sábado é 4 dias antes
     terca_bloqueio = primeiro_sabado - timedelta(days=4)
-    
     return hoje == terca_bloqueio
 
-# --- CONEXÃO ---
+# --- CONEXÃO BANCO ---
 def inicializar_conexao():
     url = st.secrets.get("SUPABASE_URL")
     key = st.secrets.get("SUPABASE_KEY")
@@ -64,18 +59,16 @@ if not st.session_state.autenticado:
         senha = st.text_input("Senha:", type="password")
         
         if st.button("Entrar", use_container_width=True):
-            # Validação de Bloqueio para as Irmãs
             if cargo_sel == "Reserva de Cesta Básica" and is_sistema_bloqueado():
                 st.markdown(f"""
                 <div class='bloqueio-msg'>
                     <h3>🚫 SISTEMA BLOQUEADO PARA RESERVAS</h3>
-                    <p>O prazo de reservas para este período expirou.</p>
+                    <p>O prazo de reservas expirou.</p>
                     <p><b>Caso haja casos atrasados, entre em contato com:</b><br>
                     Irmã Cal: (11) 97393-9407</p>
                 </div>
                 """, unsafe_allow_html=True)
             else:
-                # Verificação de senhas (mantendo os secrets antigos para não quebrar)
                 if (cargo_sel == "Lançados" and senha == st.secrets.get("SENHA_DIACONO", "diacono123")) or \
                    (cargo_sel == "Reserva de Cesta Básica" and senha == st.secrets.get("SENHA_IRMAS", "piedade123")):
                     st.session_state.autenticado, st.session_state.cargo = True, cargo_sel
@@ -90,7 +83,7 @@ else:
             st.session_state.autenticado = False
             st.rerun()
 
-    # --- VISÃO: LANÇADOS (Antigo Diácono) ---
+    # --- VISÃO: LANÇADOS ---
     if st.session_state.cargo == "Lançados":
         st.title("📋 Gestão de Pedidos")
         tab_novos, tab_existentes, tab_tratados = st.tabs(["🆕 Novos", "📋 Prontuários", "✅ Tratados"])
@@ -117,6 +110,19 @@ else:
                             supabase.table("registros_piedade").update({"tratado": True}).eq("id", item['id']).execute()
                             st.rerun()
 
+                    # Detalhes expandidos incluindo o Cônjuge
+                    if item.get('nome_completo'):
+                        with st.expander("🔍 Ver Detalhes Completos"):
+                            d1, d2 = st.columns(2)
+                            d1.markdown(f"**Idade:** {item.get('idade')} anos")
+                            d1.markdown(f"**Estado Civil:** {item.get('estado_civil')}")
+                            d1.markdown(f"**Endereço:** {item.get('endereco')} - CEP: {item.get('cep')}")
+                            
+                            if item.get('nome_conjuge'):
+                                d2.markdown(f"**💍 Cônjuge:** {item.get('nome_conjuge')}")
+                                d2.markdown(f"**Idade Cônjuge:** {item.get('idade_conjuge')} anos")
+                            d2.markdown(f"**Tempo de Batismo:** {item.get('tempo_batismo') or 'N/A'}")
+
             with tab_novos:
                 for i in [x for x in dados if x.get('nome_completo') and not x.get('tratado')]: exibir_registro_compacto(i)
             with tab_existentes:
@@ -124,9 +130,9 @@ else:
             with tab_tratados:
                 for i in [x for x in dados if x.get('tratado')]:
                     st.text(f"✅ {i.get('nome_completo') or 'Prontuário '+i.get('num_prontuario')} - Finalizado")
-        except Exception as e: st.error(f"Erro ao carregar dados.")
+        except: st.error("Erro ao carregar dados.")
 
-    # --- VISÃO: RESERVA DE CESTA BÁSICA (Antiga Irmã) ---
+    # --- VISÃO: RESERVA DE CESTA BÁSICA ---
     else:
         st.title("📝 Nova Reserva de Cesta")
         f_id = st.session_state.form_id
@@ -151,7 +157,7 @@ else:
             st.divider()
             is_novo = st.toggle("É UM CADASTRO NOVO?", key=f"v_{f_id}")
 
-            n_comp, n_id, n_bat, n_civ, n_conj, n_conj_id, n_end, n_bai, n_cep = "", 0, "", "Solteiro(a)", "", 0, "", "", ""
+            n_comp, n_id, n_bat, n_civ, n_conj, n_conj_id, n_end, n_cep = "", 0, "", "Solteiro(a)", "", 0, "", ""
 
             if is_novo:
                 n_comp = st.text_input("Nome Completo do Assistido:", key=f"nc_{f_id}")
@@ -159,18 +165,29 @@ else:
                 n_id = d1.number_input("Idade:", min_value=0, key=f"id_{f_id}")
                 n_bat = d2.text_input("Tempo de Batismo:", key=f"tb_{f_id}")
                 n_civ = d3.selectbox("Estado Civil:", ["Solteiro(a)", "Casado(a)", "Viúvo(a)", "Desquitado(a)"], key=f"ec_{f_id}")
+                
+                # Campos de Cônjuge aparecem se for Casado(a)
+                if n_civ == "Casado(a)":
+                    with st.container(border=True):
+                        c_col1, c_col2 = st.columns([3, 1])
+                        n_conj = c_col1.text_input("Nome do Cônjuge:", key=f"nj_{f_id}")
+                        n_conj_id = c_col2.number_input("Idade Cônjuge:", min_value=0, key=f"ij_{f_id}")
+                
                 n_end = st.text_input("Endereço Completo:", key=f"en_{f_id}")
                 n_cep = st.text_input("CEP:", key=f"ce_{f_id}")
 
             if st.button("💾 CONFIRMAR RESERVA", type="primary", use_container_width=True):
                 if not nome_sol or not comum_sol or not comum_ast: 
                     st.error("Preencha todos os campos obrigatórios!"); st.stop()
+                if is_novo and not n_comp:
+                    st.error("Informe o nome do assistido!"); st.stop()
 
                 payload = {
                     "tipo_solicitante": tipo_sol, "nome_solicitante": nome_sol, "comum_solicitante": comum_sol,
                     "comum_assistido": comum_ast, "num_prontuario": n_pront, "quantidade_cestas": int(q_cestas), 
                     "local_retirada": loc, "nome_completo": n_comp, "idade": int(n_id), "tempo_batismo": n_bat, 
-                    "estado_civil": n_civ, "endereco": n_end, "cep": n_cep, "data_sistema": datetime.now().strftime('%d/%m/%Y %H:%M'), 
+                    "estado_civil": n_civ, "nome_conjuge": n_conj, "idade_conjuge": int(n_conj_id),
+                    "endereco": n_end, "cep": n_cep, "data_sistema": datetime.now().strftime('%d/%m/%Y %H:%M'), 
                     "tratado": False
                 }
                 
@@ -180,4 +197,4 @@ else:
                     time.sleep(1)
                     resetar_tela()
                     st.rerun()
-                except Exception as e: st.error(f"Erro ao salvar.")
+                except: st.error("Erro ao salvar no banco de dados.")
