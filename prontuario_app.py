@@ -4,58 +4,55 @@ from datetime import datetime, timedelta
 
 st.set_page_config(page_title="Sistema Piedade - Registro", layout="centered")
 
-# --- FUNÇÃO DE CONEXÃO MANUAL (MAIS ESTÁVEL) ---
+# --- CONEXÃO COM O BANCO ---
 def inicializar_conexao():
-    # Tenta buscar nos Secrets do Streamlit
-    url = st.secrets.get("SUPABASE_URL") or st.secrets.get("connections", {}).get("supabase", {}).get("url")
-    key = st.secrets.get("SUPABASE_KEY") or st.secrets.get("connections", {}).get("supabase", {}).get("key")
+    url = st.secrets.get("SUPABASE_URL")
+    key = st.secrets.get("SUPABASE_KEY")
     
     if not url or not key:
         st.error("❌ Credenciais não encontradas nos Secrets!")
-        st.info("Certifique-se de que os Secrets no Streamlit Cloud contenham 'url' e 'key'.")
         st.stop()
-        
     return create_client(url, key)
 
 try:
     supabase: Client = inicializar_conexao()
 except Exception as e:
-    st.error(f"Erro ao conectar ao Supabase: {e}")
+    st.error(f"Erro de conexão: {e}")
     st.stop()
 
-# --- LÓGICA DE BLOQUEIO POR DATA ---
-def verificar_acesso():
-    hoje = datetime.now()
-    # Primeiro dia do mês atual
-    primeiro_dia = hoje.replace(day=1)
-    # Encontra o primeiro sábado (weekday 5)
-    dias_para_sabado = (5 - primeiro_dia.weekday() + 7) % 7
-    primeiro_sabado = primeiro_dia + timedelta(days=dias_para_sabado)
-    # Terça anterior ao primeiro sábado
+# --- NOVA LÓGICA DE ACESSO ---
+def verificar_bloqueio():
+    hoje = datetime.now().date()
+    
+    # Encontrar o primeiro sábado do mês atual
+    primeiro_dia_mes = hoje.replace(day=1)
+    dias_para_sabado = (5 - primeiro_dia_mes.weekday() + 7) % 7
+    primeiro_sabado = primeiro_dia_mes + timedelta(days=dias_para_sabado)
+    
+    # Terça-feira que antecede o primeiro sábado (último dia permitido)
     limite_terca = primeiro_sabado - timedelta(days=4)
     
-    # Se hoje for depois da terça-feira limite, bloqueia
-    if hoje.date() > limite_terca.date():
-        return False, limite_terca
-    return True, limite_terca
+    # BLOQUEIO: Se hoje for DEPOIS da terça E ANTES ou IGUAL ao sábado
+    if limite_terca < hoje <= primeiro_sabado:
+        return False, primeiro_sabado
+    return True, None
 
-acesso_liberado, data_limite = verificar_acesso()
+acesso_liberado, data_liberado = verificar_bloqueio()
 
-# --- INTERFACE ---
 st.title("⛪ Cadastro de Prontuários")
 
 if not acesso_liberado:
-    st.error(f"⚠️ Sistema Bloqueado. O prazo encerrou na terça-feira ({data_limite.strftime('%d/%m/%Y')}).")
+    st.error(f"⚠️ Sistema Temporariamente Bloqueado.")
+    st.info(f"O período de lançamentos encerrou na terça-feira. O sistema será liberado após o primeiro sábado ({data_liberado.strftime('%d/%m/%Y')}).")
 else:
-    # Cabeçalho do Solicitante
+    # --- FORMULÁRIO DE CADASTRO ---
     with st.container(border=True):
         st.subheader("Solicitante")
         tipo = st.radio("Selecione seu cargo:", ["Diácono", "Irmã da Piedade"], horizontal=True)
         nome_solicitante = st.text_input(f"Nome do(a) {tipo}:")
         comum = st.text_input("Comum Congregação (Prontuário):")
 
-    # Dados do Assistido
-    st.subheader("Dados do Prontuário")
+    st.subheader("Dados do Assistido")
     nome_completo = st.text_input("Nome Completo do Assistido:")
     
     col1, col2, col3 = st.columns(3)
@@ -78,7 +75,6 @@ else:
     cep = b2.text_input("CEP:")
     qtd_cestas = b3.number_input("Quantidade de Cestas:", min_value=1, step=1)
 
-    # Botões de Ação
     st.write("")
     c_btn1, c_btn2 = st.columns(2)
     
@@ -100,10 +96,14 @@ else:
                 "endereco": endereco,
                 "bairro": bairro,
                 "cep": cep,
-                "quantidade_cestas": qtd_cestas
+                "quantidade_cestas": qtd_cestas,
+                "data_sistema": datetime.now().strftime('%Y-%m-%d')
             }
-            res = supabase.table("registros_piedade").insert(dados).execute()
-            st.success("✅ Informações salvas com sucesso!")
+            try:
+                supabase.table("registros_piedade").insert(dados).execute()
+                st.success("✅ Informações salvas com sucesso!")
+            except Exception as e:
+                st.error(f"Erro ao salvar: {e}")
 
     if c_btn2.button("🆕 Novo Prontuário", use_container_width=True):
         st.rerun()
