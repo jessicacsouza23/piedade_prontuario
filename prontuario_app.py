@@ -33,15 +33,14 @@ except Exception as e:
     st.error(f"Erro: {e}")
     st.stop()
 
-# --- CONTROLE DE ESTADO (SESSION STATE) ---
+# --- CONTROLE DE ESTADO ---
 if 'autenticado' not in st.session_state:
     st.session_state.autenticado = False
 if 'form_id' not in st.session_state:
     st.session_state.form_id = 0
 
-# Função para forçar a limpeza da tela
 def resetar_tela():
-    st.session_state.form_id += 1 # Muda o ID dos campos para forçar o reset visual
+    st.session_state.form_id += 1
     for key in list(st.session_state.keys()):
         if key not in ['autenticado', 'cargo', 'form_id']:
             st.session_state.pop(key)
@@ -64,16 +63,35 @@ else:
         st.session_state.autenticado = False
         st.rerun()
 
-    # --- VISÃO DO DIÁCONO ---
+    # --- VISÃO DO DIÁCONO (COM FUNÇÃO DE APAGAR TRATADOS) ---
     if st.session_state.cargo == "Diácono":
         st.title("📋 Painel de Conferência")
+        
+        # Colunas para botões de ação no topo
+        btn_col1, btn_col2 = st.columns([1, 1])
+        
         try:
+            # Busca dados para o relatório
             res = supabase.table("registros_piedade").select("*").order("data_sistema", desc=True).execute()
             dados = res.data
+            
             if dados:
                 df = pd.DataFrame(dados)
-                st.download_button("📥 Exportar Excel", df.to_csv(index=False).encode('utf-8-sig'), "relatorio.csv", "text/csv")
+                btn_col1.download_button("📥 Baixar Excel Completo", df.to_csv(index=False).encode('utf-8-sig'), "relatorio.csv", "text/csv", use_container_width=True)
                 
+                # BOTÃO PARA APAGAR TRATADOS
+                if btn_col2.button("🔥 Apagar Casos Tratados do Banco", type="secondary", use_container_width=True):
+                    try:
+                        # Deleta todos onde 'tratado' é True
+                        supabase.table("registros_piedade").delete().eq("tratado", True).execute()
+                        st.toast("✅ Registros tratados foram excluídos permanentemente!")
+                        time.sleep(1)
+                        st.rerun()
+                    except Exception as e:
+                        st.error(f"Erro ao apagar: {e}")
+
+                st.divider()
+
                 for item in dados:
                     with st.container(border=True):
                         h_col, a_col = st.columns([4, 1.5])
@@ -121,10 +139,7 @@ else:
     # --- VISÃO DA IRMÃ ---
     else:
         st.title("📝 Cadastro de Solicitações")
-        
-        # O sufixo f"_{st.session_state.form_id}" garante que os campos limpem após o salvar
         f_id = st.session_state.form_id
-        
         with st.container(border=True):
             tipo_sol = st.radio("Quem solicita?", ["Diácono", "Irmã da Piedade"], horizontal=True, key=f"tipo_s_{f_id}")
             nome_sol = st.text_input(f"Nome do(a) {tipo_sol}:", key=f"nome_s_{f_id}")
@@ -137,7 +152,6 @@ else:
             st.divider()
             is_novo = st.toggle("🆕 CADASTRAR COMO PRONTUÁRIO NOVO", key=f"toggle_n_{f_id}")
 
-            # Variáveis internas para o payload
             n_comp, n_id, n_bat, n_civ, n_conj, n_conj_id, n_conj_bat, n_end, n_bai, n_cep = "", 0, "", "Solteiro(a)", "", 0, "", "", "", ""
 
             if is_novo:
@@ -158,7 +172,7 @@ else:
                 n_end = st.text_input("Rua e Número:", key=f"end_n_{f_id}")
                 b1, b2 = st.columns(2)
                 n_bai = b1.text_input("Bairro:", key=f"bai_n_{f_id}")
-                n_cep = b2.text_input("CEP:", key="cep_n")
+                n_cep = b2.text_input("CEP:", key=f"cep_n_{f_id}")
 
             if st.button("💾 FINALIZAR E ENVIAR", type="primary", use_container_width=True):
                 if not nome_sol: st.error("Informe o Nome!"); st.stop()
@@ -173,14 +187,10 @@ else:
                 }
                 
                 try:
-                    # Envia para o Banco
                     supabase.table("registros_piedade").insert(payload).execute()
-                    
                     st.balloons()
                     st.success("Dados salvos")
                     time.sleep(1)
-                    
-                    # LIMPA A TELA PARA O PRÓXIMO
                     resetar_tela()
                     st.rerun() 
                 except Exception as e:
