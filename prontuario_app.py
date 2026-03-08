@@ -6,7 +6,11 @@ from datetime import datetime, timedelta
 st.set_page_config(page_title="Sistema de Cadastro - Piedade", layout="centered")
 
 # Conexão com o Banco de Dados (Configurar no Secrets do Streamlit)
-conn = st.connection("supabase", type=SupabaseConnection)
+try:
+    conn = st.connection("supabase", type=SupabaseConnection)
+except Exception as e:
+    st.error("Erro de conexão com o banco de dados. Verifique os Secrets.")
+    st.stop()
 
 # --- LÓGICA DE BLOQUEIO POR DATA ---
 def verificar_acesso():
