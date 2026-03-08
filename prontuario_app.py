@@ -1,6 +1,6 @@
 import streamlit as st
 from supabase import create_client, Client
-from datetime import datetime, timedelta
+from datetime import datetime
 import pandas as pd
 import time
 
@@ -33,15 +33,17 @@ except Exception as e:
     st.error(f"Erro: {e}")
     st.stop()
 
-# --- ESTADO DA SESSÃO ---
+# --- CONTROLE DE ESTADO (SESSION STATE) ---
 if 'autenticado' not in st.session_state:
     st.session_state.autenticado = False
+if 'form_id' not in st.session_state:
+    st.session_state.form_id = 0
 
-# FUNÇÃO PARA LIMPAR A TELA (SESSION STATE) SEM AFETAR O BANCO
-def limpar_tela_para_novo_cadastro():
+# Função para forçar a limpeza da tela
+def resetar_tela():
+    st.session_state.form_id += 1 # Muda o ID dos campos para forçar o reset visual
     for key in list(st.session_state.keys()):
-        # Mantemos apenas o login, o resto a gente limpa da tela
-        if key not in ['autenticado', 'cargo']:
+        if key not in ['autenticado', 'cargo', 'form_id']:
             st.session_state.pop(key)
 
 # --- LOGIN ---
@@ -59,7 +61,6 @@ if not st.session_state.autenticado:
 else:
     st.sidebar.title(f"Usuário: {st.session_state.cargo}")
     if st.sidebar.button("Sair"):
-        limpar_tela_para_novo_cadastro()
         st.session_state.autenticado = False
         st.rerun()
 
@@ -120,47 +121,49 @@ else:
     # --- VISÃO DA IRMÃ ---
     else:
         st.title("📝 Cadastro de Solicitações")
+        
+        # O sufixo f"_{st.session_state.form_id}" garante que os campos limpem após o salvar
+        f_id = st.session_state.form_id
+        
         with st.container(border=True):
-            tipo_sol = st.radio("Quem solicita?", ["Diácono", "Irmã da Piedade"], horizontal=True, key="tipo_s")
-            nome_sol = st.text_input(f"Nome do(a) {tipo_sol}:", key="nome_s")
+            tipo_sol = st.radio("Quem solicita?", ["Diácono", "Irmã da Piedade"], horizontal=True, key=f"tipo_s_{f_id}")
+            nome_sol = st.text_input(f"Nome do(a) {tipo_sol}:", key=f"nome_s_{f_id}")
             
             cp1, cp2 = st.columns([2, 1])
-            n_prontuario = cp1.text_input("Número do Prontuário:", key="pront_n")
-            q_cestas = cp2.number_input("Cestas:", min_value=1, step=1, key="cestas_q")
+            n_prontuario = cp1.text_input("Número do Prontuário:", key=f"pront_n_{f_id}")
+            q_cestas = cp2.number_input("Cestas:", min_value=1, step=1, key=f"cestas_q_{f_id}")
             
-            loc_retirada = st.radio("Local de Retirada:", ["Pq. Guarani", "Itaquera"], horizontal=True, key="loc_r")
+            loc_retirada = st.radio("Local de Retirada:", ["Pq. Guarani", "Itaquera"], horizontal=True, key=f"loc_r_{f_id}")
             st.divider()
-            is_novo = st.toggle("🆕 CADASTRAR COMO PRONTUÁRIO NOVO", key="toggle_n")
+            is_novo = st.toggle("🆕 CADASTRAR COMO PRONTUÁRIO NOVO", key=f"toggle_n_{f_id}")
 
-            # Variáveis limpas para o banco
+            # Variáveis internas para o payload
             n_comp, n_id, n_bat, n_civ, n_conj, n_conj_id, n_conj_bat, n_end, n_bai, n_cep = "", 0, "", "Solteiro(a)", "", 0, "", "", "", ""
 
             if is_novo:
-                n_comp = st.text_input("Nome Completo:", key="comp_n")
+                n_comp = st.text_input("Nome Completo:", key=f"comp_n_{f_id}")
                 d1, d2, d3 = st.columns(3)
-                n_id = d1.number_input("Idade:", min_value=0, key="id_n")
-                n_bat = d2.text_input("Tempo de Batismo:", key="bat_n")
-                n_civ = d3.selectbox("Estado Civil:", ["Solteiro(a)", "Casado(a)", "Viúvo(a)", "Desquitado(a)"], key="civ_n")
+                n_id = d1.number_input("Idade:", min_value=0, key=f"id_n_{f_id}")
+                n_bat = d2.text_input("Tempo de Batismo:", key=f"bat_n_{f_id}")
+                n_civ = d3.selectbox("Estado Civil:", ["Solteiro(a)", "Casado(a)", "Viúvo(a)", "Desquitado(a)"], key=f"civ_n_{f_id}")
                 
                 if n_civ == "Casado(a)":
                     with st.container(border=True):
                         st.write("💍 **Dados do Cônjuge**")
-                        n_conj = st.text_input("Nome do Cônjuge:", key="conj_n")
+                        n_conj = st.text_input("Nome do Cônjuge:", key=f"conj_n_{f_id}")
                         cc1, cc2 = st.columns(2)
-                        n_conj_id = cc1.number_input("Idade Cônjuge:", min_value=0, key="conj_id_n")
-                        n_conj_bat = cc2.text_input("Tempo de Batismo Cônjuge:", key="conj_bat_n")
+                        n_conj_id = cc1.number_input("Idade Cônjuge:", min_value=0, key=f"conj_id_n_{f_id}")
+                        n_conj_bat = cc2.text_input("Tempo de Batismo Cônjuge:", key=f"conj_bat_n_{f_id}")
                 
-                n_end = st.text_input("Rua e Número:", key="end_n")
+                n_end = st.text_input("Rua e Número:", key=f"end_n_{f_id}")
                 b1, b2 = st.columns(2)
-                n_bai = b1.text_input("Bairro:", key="bai_n")
+                n_bai = b1.text_input("Bairro:", key=f"bai_n_{f_id}")
                 n_cep = b2.text_input("CEP:", key="cep_n")
 
             if st.button("💾 FINALIZAR E ENVIAR", type="primary", use_container_width=True):
-                # Validação de segurança
                 if not nome_sol: st.error("Informe o Nome!"); st.stop()
-                if not is_novo and not n_prontuario: st.error("Nº Prontuário é obrigatório!"); st.stop()
+                if not is_novo and not n_prontuario: st.error("Nº Prontuário obrigatório!"); st.stop()
 
-                # Prepara o que vai para o banco (INSERT)
                 payload = {
                     "tipo_solicitante": tipo_sol, "nome_solicitante": nome_sol, "num_prontuario": n_prontuario,
                     "quantidade_cestas": int(q_cestas), "local_retirada": loc_retirada, "nome_completo": n_comp,
@@ -170,16 +173,15 @@ else:
                 }
                 
                 try:
-                    # SALVA NO BANCO (NÃO APAGA NADA DAQUI)
+                    # Envia para o Banco
                     supabase.table("registros_piedade").insert(payload).execute()
                     
-                    # SUCESSO VISUAL
                     st.balloons()
                     st.success("Dados salvos")
-                    time.sleep(1.5)
+                    time.sleep(1)
                     
-                    # APAGA APENAS A TELA PARA O PRÓXIMO USO
-                    limpar_tela_para_novo_cadastro()
+                    # LIMPA A TELA PARA O PRÓXIMO
+                    resetar_tela()
                     st.rerun() 
                 except Exception as e:
                     st.error(f"Erro ao salvar: {e}")
