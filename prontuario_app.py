@@ -6,7 +6,7 @@ import time
 
 st.set_page_config(page_title="Sistema Piedade", layout="wide", initial_sidebar_state="collapsed")
 
-# --- ESTILIZAÇÃO ---
+# --- ESTILIZAÇÃO CSS ---
 st.markdown("""
     <style>
     .main { background-color: #f8f9fa; }
@@ -18,7 +18,7 @@ st.markdown("""
     </style>
     """, unsafe_allow_html=True)
 
-# --- CONEXÃO ---
+# --- CONEXÃO COM O BANCO ---
 def inicializar_conexao():
     url = st.secrets.get("SUPABASE_URL")
     key = st.secrets.get("SUPABASE_KEY")
@@ -37,9 +37,10 @@ except Exception as e:
 if 'autenticado' not in st.session_state:
     st.session_state.autenticado = False
 
-# Função Robusta para Limpar TUDO
-def resetar_formulario():
+# FUNÇÃO PARA LIMPAR A TELA (SESSION STATE) SEM AFETAR O BANCO
+def limpar_tela_para_novo_cadastro():
     for key in list(st.session_state.keys()):
+        # Mantemos apenas o login, o resto a gente limpa da tela
         if key not in ['autenticado', 'cargo']:
             st.session_state.pop(key)
 
@@ -58,7 +59,7 @@ if not st.session_state.autenticado:
 else:
     st.sidebar.title(f"Usuário: {st.session_state.cargo}")
     if st.sidebar.button("Sair"):
-        resetar_formulario()
+        limpar_tela_para_novo_cadastro()
         st.session_state.autenticado = False
         st.rerun()
 
@@ -110,16 +111,15 @@ else:
                                 st.markdown(f"""
                                 <div class='conjuge-card'>
                                     <b>💍 Cônjuge:</b> {item.get('nome_conjuge')}<br>
-                                    <b>Idade:</b> {item.get('idade_conjuge')} anos | <b>Batismo Cônjuge:</b> {item.get('tempo_batismo_conjuge') or 'N/A'}
+                                    <b>Idade:</b> {item.get('idade_conjuge')} anos | <b>Batismo:</b> {item.get('tempo_batismo_conjuge') or 'N/A'}
                                 </div>
                                 """, unsafe_allow_html=True)
-            else: st.info("Sem registros.")
+            else: st.info("Sem registros no banco.")
         except Exception as e: st.error(f"Erro: {e}")
 
     # --- VISÃO DA IRMÃ ---
     else:
         st.title("📝 Cadastro de Solicitações")
-        # O formulário agora é envolto por um container que respeita o reset
         with st.container(border=True):
             tipo_sol = st.radio("Quem solicita?", ["Diácono", "Irmã da Piedade"], horizontal=True, key="tipo_s")
             nome_sol = st.text_input(f"Nome do(a) {tipo_sol}:", key="nome_s")
@@ -132,7 +132,7 @@ else:
             st.divider()
             is_novo = st.toggle("🆕 CADASTRAR COMO PRONTUÁRIO NOVO", key="toggle_n")
 
-            # Inicialização de variáveis para o payload
+            # Variáveis limpas para o banco
             n_comp, n_id, n_bat, n_civ, n_conj, n_conj_id, n_conj_bat, n_end, n_bai, n_cep = "", 0, "", "Solteiro(a)", "", 0, "", "", "", ""
 
             if is_novo:
@@ -156,12 +156,11 @@ else:
                 n_cep = b2.text_input("CEP:", key="cep_n")
 
             if st.button("💾 FINALIZAR E ENVIAR", type="primary", use_container_width=True):
-                # Validações Básicas
-                if not nome_sol: 
-                    st.error("Informe o Nome do Solicitante!"); st.stop()
-                if not is_novo and not n_prontuario: 
-                    st.error("Número do Prontuário é obrigatório!"); st.stop()
+                # Validação de segurança
+                if not nome_sol: st.error("Informe o Nome!"); st.stop()
+                if not is_novo and not n_prontuario: st.error("Nº Prontuário é obrigatório!"); st.stop()
 
+                # Prepara o que vai para o banco (INSERT)
                 payload = {
                     "tipo_solicitante": tipo_sol, "nome_solicitante": nome_sol, "num_prontuario": n_prontuario,
                     "quantidade_cestas": int(q_cestas), "local_retirada": loc_retirada, "nome_completo": n_comp,
@@ -171,11 +170,16 @@ else:
                 }
                 
                 try:
+                    # SALVA NO BANCO (NÃO APAGA NADA DAQUI)
                     supabase.table("registros_piedade").insert(payload).execute()
+                    
+                    # SUCESSO VISUAL
                     st.balloons()
                     st.success("Dados salvos")
                     time.sleep(1.5)
-                    resetar_formulario() # Limpa TUDO no estado da sessão
-                    st.rerun() # Recarrega a página do zero
+                    
+                    # APAGA APENAS A TELA PARA O PRÓXIMO USO
+                    limpar_tela_para_novo_cadastro()
+                    st.rerun() 
                 except Exception as e:
                     st.error(f"Erro ao salvar: {e}")
