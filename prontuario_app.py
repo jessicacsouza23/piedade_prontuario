@@ -37,11 +37,11 @@ except Exception as e:
 if 'autenticado' not in st.session_state:
     st.session_state.autenticado = False
 
-# Função para limpar campos
-def limpar_campos():
-    for key in st.session_state.keys():
+# Função Robusta para Limpar TUDO
+def resetar_formulario():
+    for key in list(st.session_state.keys()):
         if key not in ['autenticado', 'cargo']:
-            del st.session_state[key]
+            st.session_state.pop(key)
 
 # --- LOGIN ---
 if not st.session_state.autenticado:
@@ -58,10 +58,11 @@ if not st.session_state.autenticado:
 else:
     st.sidebar.title(f"Usuário: {st.session_state.cargo}")
     if st.sidebar.button("Sair"):
+        resetar_formulario()
         st.session_state.autenticado = False
         st.rerun()
 
-    # --- VISÃO DO DIÁCONO (DADOS DO CÔNJUGE EXPLÍCITOS) ---
+    # --- VISÃO DO DIÁCONO ---
     if st.session_state.cargo == "Diácono":
         st.title("📋 Painel de Conferência")
         try:
@@ -105,20 +106,20 @@ else:
                                 </div>
                                 """, unsafe_allow_html=True)
                             
-                            # EXIBIÇÃO EXPLÍCITA DO CÔNJUGE
                             if item.get('nome_conjuge'):
                                 st.markdown(f"""
                                 <div class='conjuge-card'>
                                     <b>💍 Cônjuge:</b> {item.get('nome_conjuge')}<br>
-                                    <b>Idade:</b> {item.get('idade_conjuge')} anos | <b>Tempo de Batismo:</b> {item.get('tempo_batismo_conjuge') or 'N/A'}
+                                    <b>Idade:</b> {item.get('idade_conjuge')} anos | <b>Batismo Cônjuge:</b> {item.get('tempo_batismo_conjuge') or 'N/A'}
                                 </div>
                                 """, unsafe_allow_html=True)
             else: st.info("Sem registros.")
         except Exception as e: st.error(f"Erro: {e}")
 
-    # --- VISÃO DA IRMÃ (CADASTRO COM RESET REAL) ---
+    # --- VISÃO DA IRMÃ ---
     else:
         st.title("📝 Cadastro de Solicitações")
+        # O formulário agora é envolto por um container que respeita o reset
         with st.container(border=True):
             tipo_sol = st.radio("Quem solicita?", ["Diácono", "Irmã da Piedade"], horizontal=True, key="tipo_s")
             nome_sol = st.text_input(f"Nome do(a) {tipo_sol}:", key="nome_s")
@@ -131,7 +132,9 @@ else:
             st.divider()
             is_novo = st.toggle("🆕 CADASTRAR COMO PRONTUÁRIO NOVO", key="toggle_n")
 
-            # Inputs para novo cadastro
+            # Inicialização de variáveis para o payload
+            n_comp, n_id, n_bat, n_civ, n_conj, n_conj_id, n_conj_bat, n_end, n_bai, n_cep = "", 0, "", "Solteiro(a)", "", 0, "", "", "", ""
+
             if is_novo:
                 n_comp = st.text_input("Nome Completo:", key="comp_n")
                 d1, d2, d3 = st.columns(3)
@@ -139,8 +142,6 @@ else:
                 n_bat = d2.text_input("Tempo de Batismo:", key="bat_n")
                 n_civ = d3.selectbox("Estado Civil:", ["Solteiro(a)", "Casado(a)", "Viúvo(a)", "Desquitado(a)"], key="civ_n")
                 
-                # Dados Cônjuge
-                n_conj, n_conj_id, n_conj_bat = "", 0, ""
                 if n_civ == "Casado(a)":
                     with st.container(border=True):
                         st.write("💍 **Dados do Cônjuge**")
@@ -153,12 +154,13 @@ else:
                 b1, b2 = st.columns(2)
                 n_bai = b1.text_input("Bairro:", key="bai_n")
                 n_cep = b2.text_input("CEP:", key="cep_n")
-            else:
-                n_comp, n_id, n_bat, n_civ, n_conj, n_conj_id, n_conj_bat, n_end, n_bai, n_cep = "", 0, "", "Solteiro(a)", "", 0, "", "", "", ""
 
             if st.button("💾 FINALIZAR E ENVIAR", type="primary", use_container_width=True):
-                if not nome_sol: st.error("Nome obrigatório!"); st.stop()
-                if not is_novo and not n_prontuario: st.error("Nº Prontuário obrigatório!"); st.stop()
+                # Validações Básicas
+                if not nome_sol: 
+                    st.error("Informe o Nome do Solicitante!"); st.stop()
+                if not is_novo and not n_prontuario: 
+                    st.error("Número do Prontuário é obrigatório!"); st.stop()
 
                 payload = {
                     "tipo_solicitante": tipo_sol, "nome_solicitante": nome_sol, "num_prontuario": n_prontuario,
@@ -173,7 +175,7 @@ else:
                     st.balloons()
                     st.success("Dados salvos")
                     time.sleep(1.5)
-                    limpar_campos() # Limpa o estado da sessão antes de recarregar
-                    st.rerun()
+                    resetar_formulario() # Limpa TUDO no estado da sessão
+                    st.rerun() # Recarrega a página do zero
                 except Exception as e:
-                    st.error(f"Erro: {e}")
+                    st.error(f"Erro ao salvar: {e}")
