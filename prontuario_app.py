@@ -20,7 +20,7 @@ except Exception as e:
     st.error(f"Erro de conexão: {e}")
     st.stop()
 
-# --- LÓGICA DE ACESSO (BLOQUEIO POR DATA) ---
+# --- LÓGICA DE BLOQUEIO POR DATA ---
 def verificar_bloqueio():
     hoje = datetime.now().date()
     primeiro_dia_mes = hoje.replace(day=1)
@@ -32,7 +32,7 @@ def verificar_bloqueio():
         return False, primeiro_sabado
     return True, None
 
-# --- CONTROLE DE ESTADO ---
+# --- CONTROLE DE ESTADO (SESSION STATE) ---
 if 'autenticado' not in st.session_state:
     st.session_state.autenticado = False
     st.session_state.cargo = ""
@@ -42,156 +42,115 @@ if 'exibir_cadastro_completo' not in st.session_state:
 # --- TELA DE LOGIN ---
 if not st.session_state.autenticado:
     st.title("⛪ Acesso ao Sistema Piedade")
-    col_l, col_r = st.columns(2)
+    cargo_selecionado = st.selectbox("Entrar como:", ["Diácono", "Irmã da Piedade"])
+    senha = st.text_input("Senha:", type="password")
     
-    with col_l:
-        st.subheader("Login")
-        cargo_selecionado = st.selectbox("Entrar como:", ["Diácono", "Irmã da Piedade"])
-        senha = st.text_input("Senha:", type="password")
+    if st.button("Entrar", use_container_width=True):
+        senha_diacono = st.secrets.get("SENHA_DIACONO", "diacono123")
+        senha_irmas = st.secrets.get("SENHA_IRMAS", "piedade123")
         
-        if st.button("Entrar", use_container_width=True):
-            senha_diacono = st.secrets.get("SENHA_DIACONO", "diacono123")
-            senha_irmas = st.secrets.get("SENHA_IRMAS", "piedade123")
-            
-            if cargo_selecionado == "Diácono" and senha == senha_diacono:
-                st.session_state.autenticado = True
-                st.session_state.cargo = "Diácono"
-                st.rerun()
-            elif cargo_selecionado == "Irmã da Piedade" and senha == senha_irmas:
-                st.session_state.autenticado = True
-                st.session_state.cargo = "Irmã da Piedade"
-                st.rerun()
-            else:
-                st.error("Senha incorreta para o cargo selecionado.")
+        if (cargo_selecionado == "Diácono" and senha == senha_diacono) or \
+           (cargo_selecionado == "Irmã da Piedade" and senha == senha_irmas):
+            st.session_state.autenticado = True
+            st.session_state.cargo = cargo_selecionado
+            st.rerun()
+        else:
+            st.error("Senha incorreta.")
 else:
-    # Barra lateral comum
-    st.sidebar.title(f"Acesso: {st.session_state.cargo}")
-    if st.sidebar.button("Sair / Trocar Login"):
+    # Barra lateral
+    st.sidebar.title(f"Usuário: {st.session_state.cargo}")
+    if st.sidebar.button("Sair"):
         st.session_state.autenticado = False
-        st.session_state.cargo = ""
         st.session_state.exibir_cadastro_completo = False
         st.rerun()
 
-    # --- VISÃO DO DIÁCONO: RELATÓRIO DE DADOS SALVOS ---
+    # --- VISÃO DIÁCONO (RELATÓRIO) ---
     if st.session_state.cargo == "Diácono":
-        st.title("📋 Registros de Prontuários Salvos")
-        st.info("Abaixo estão todos os cadastros realizados, com a data registrada pelo sistema.")
-        
+        st.title("📋 Consulta de Prontuários")
         try:
-            # Busca todos os dados da tabela
-            resposta = supabase.table("registros_piedade").select("*").order("data_sistema", desc=True).execute()
-            df = pd.DataFrame(resposta.data)
-            
+            res = supabase.table("registros_piedade").select("*").order("data_sistema", desc=True).execute()
+            df = pd.DataFrame(res.data)
             if not df.empty:
-                # Renomeando colunas para ficar legível
-                colunas_display = {
-                    "data_sistema": "Data do Cadastro",
-                    "num_prontuario": "Prontuário",
-                    "nome_completo": "Nome do Assistido",
-                    "quantidade_cestas": "Qtd Cestas",
-                    "local_retirada": "Local",
-                    "nome_solicitante": "Solicitante",
-                    "tipo_solicitante": "Cargo"
-                }
-                st.dataframe(df[list(colunas_display.keys())].rename(columns=colunas_display), use_container_width=True)
-                
-                # Botão para baixar em Excel/CSV
-                csv = df.to_csv(index=False).encode('utf-8-sig')
-                st.download_button("📥 Baixar Planilha Completa (CSV)", csv, "registros_piedade.csv", "text/csv")
+                st.dataframe(df[["data_sistema", "num_prontuario", "nome_completo", "quantidade_cestas", "local_retirada", "nome_solicitante"]], use_container_width=True)
             else:
-                st.warning("Nenhum registro encontrado no banco de dados.")
-        except Exception as e:
-            st.error(f"Erro ao carregar dados: {e}")
+                st.info("Nenhum registro no banco.")
+        except:
+            st.error("Erro ao carregar dados.")
 
-    # --- VISÃO DA IRMÃ DA PIEDADE: TELA DE CADASTRO ---
+    # --- VISÃO IRMÃ DA PIEDADE (CADASTRO) ---
     else:
-        acesso_liberado, data_liberado = verificar_bloqueio()
-        st.title("📝 Cadastro de Prontuários")
+        liberado, data_lib = verificar_bloqueio()
+        st.title("📝 Registro de Entregas")
 
-        if not acesso_liberado:
-            st.error(f"⚠️ Sistema Bloqueado para novos registros.")
-            st.info(f"O período de lançamentos encerrou. Liberação após: {data_liberado.strftime('%d/%m/%Y')}")
+        if not liberado:
+            st.error(f"⚠️ Bloqueio de data. Liberação: {data_lib.strftime('%d/%m/%Y')}")
         else:
-            # --- CAMPOS INICIAIS ---
+            # CAMPOS SEMPRE VISÍVEIS
             with st.container(border=True):
-                st.subheader("Informações de Entrega")
-                tipo_solicitante = st.radio("Solicitante:", ["Diácono", "Irmã da Piedade"], horizontal=True, index=1)
+                st.subheader("Dados de Identificação")
+                tipo_solicitante = st.radio("Solicitante:", ["Diácono", "Irmã da Piedade"], horizontal=True)
                 nome_solicitante = st.text_input(f"Nome do(a) {tipo_solicitante}:")
-                
                 c1, c2 = st.columns(2)
-                num_prontuario = c1.text_input("Número do Prontuário:")
-                qtd_cestas = c2.number_input("Quantidade de Cestas:", min_value=1, step=1)
-                
-                local_retirada = st.radio("Aonde retirar:", ["Pq. Guarani", "Itaquera"], horizontal=True)
+                num_prontuario = c1.text_input("Nº Prontuário:")
+                qtd_cestas = c2.number_input("Cestas:", min_value=1, step=1)
+                local = st.radio("Retirada:", ["Pq. Guarani", "Itaquera"], horizontal=True)
 
-            # --- DADOS DO ASSISTIDO (OPCIONAL/NOVO) ---
+            # LÓGICA DO BOTÃO "NOVO PRONTUÁRIO"
             if not st.session_state.exibir_cadastro_completo:
                 if st.button("🆕 É um Prontuário Novo? Clique aqui"):
                     st.session_state.exibir_cadastro_completo = True
                     st.rerun()
 
-            nome_completo, idade, tempo_batismo, estado_civil = "", 0, "", ""
-            nome_conjuge, idade_conjuge, tempo_batismo_conjuge = None, None, None
+            # CAMPOS QUE SÓ APARECEM SE CLICAR NO BOTÃO
+            nome_completo, idade, batismo, civil, conjuge = "", 0, "", "Solteiro(a)", ""
             endereco, bairro, cep = "", "", ""
 
             if st.session_state.exibir_cadastro_completo:
                 st.divider()
-                st.subheader("📋 Cadastro Completo (Novo Assistido)")
-                nome_completo = st.text_input("Nome Completo do Assistido:")
-                
+                st.subheader("📋 Dados do Novo Assistido")
+                nome_completo = st.text_input("Nome Completo:")
                 d1, d2, d3 = st.columns(3)
-                idade = d1.number_input("Idade:", min_value=0, step=1)
-                tempo_batismo = d2.text_input("Tempo de Batismo:")
-                estado_civil = d3.selectbox("Estado Civil:", ["Solteiro(a)", "Casado(a)", "Viúvo(a)", "Desquitado(a)"])
-
-                if estado_civil == "Casado(a)":
-                    with st.expander("Informações do Cônjuge", expanded=True):
-                        nome_conjuge = st.text_input("Nome do Cônjuge:")
-                        cc1, cc2 = st.columns(2)
-                        idade_conjuge = cc1.number_input("Idade Cônjuge:", min_value=0)
-                        tempo_batismo_conjuge = cc2.text_input("Tempo Batismo Cônjuge:")
-
+                idade = d1.number_input("Idade:", min_value=0)
+                batismo = d2.text_input("Batismo:")
+                civil = d3.selectbox("Estado Civil:", ["Solteiro(a)", "Casado(a)", "Viúvo(a)", "Desquitado(a)"])
+                
+                if civil == "Casado(a)":
+                    conjuge = st.text_input("Nome do Cônjuge:")
+                
                 st.subheader("Endereço")
-                endereco = st.text_input("Endereço Completo:")
-                b1, b2 = st.columns([2, 1])
+                endereco = st.text_input("Rua/Nº:")
+                b1, b2 = st.columns(2)
                 bairro = b1.text_input("Bairro:")
                 cep = b2.text_input("CEP:")
                 
-                if st.button("❌ Cancelar Cadastro Novo"):
+                if st.button("❌ Cancelar"):
                     st.session_state.exibir_cadastro_completo = False
                     st.rerun()
 
-            # --- BOTÃO SALVAR ---
+            # BOTÃO SALVAR (Sempre visível no final)
             st.divider()
-            if st.button("💾 Salvar Registro", type="primary", use_container_width=True):
+            if st.button("💾 Finalizar e Salvar no Banco", type="primary", use_container_width=True):
                 if not nome_solicitante or not num_prontuario:
-                    st.warning("Preencha o Solicitante e o Número do Prontuário.")
+                    st.warning("Preencha o Solicitante e o Prontuário!")
                 else:
-                    # Captura a data exata do sistema no momento do clique
-                    data_hoje = datetime.now().strftime('%Y-%m-%d')
-                    
+                    data_comp = datetime.now().strftime('%Y-%m-%d')
                     dados = {
                         "tipo_solicitante": tipo_solicitante,
                         "nome_solicitante": nome_solicitante,
                         "num_prontuario": num_prontuario,
                         "quantidade_cestas": int(qtd_cestas),
-                        "local_retirada": local_retirada,
+                        "local_retirada": local,
                         "nome_completo": nome_completo,
                         "idade": int(idade),
-                        "tempo_batismo": tempo_batismo,
-                        "estado_civil": estado_civil,
-                        "nome_conjuge": nome_conjuge,
-                        "idade_conjuge": int(idade_conjuge) if idade_conjuge else None,
-                        "tempo_batismo_conjuge": tempo_batismo_conjuge,
+                        "tempo_batismo": batismo,
+                        "estado_civil": civil,
+                        "nome_conjuge": conjuge,
                         "endereco": endereco,
                         "bairro": bairro,
                         "cep": cep,
-                        "data_sistema": data_hoje # Data do sistema do computador
+                        "data_sistema": data_comp
                     }
-                    try:
-                        supabase.table("registros_piedade").insert(dados).execute()
-                        st.success(f"✅ Registro salvo com sucesso em {data_hoje}!")
-                        st.session_state.exibir_cadastro_completo = False
-                        st.rerun()
-                    except Exception as e:
-                        st.error(f"Erro ao salvar: {e}")
+                    supabase.table("registros_piedade").insert(dados).execute()
+                    st.success(f"Salvo com sucesso em {data_comp}!")
+                    st.session_state.exibir_cadastro_completo = False # Volta ao normal
+                    st.rerun()
