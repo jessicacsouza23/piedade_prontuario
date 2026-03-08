@@ -27,15 +27,17 @@ def verificar_bloqueio():
     primeiro_sabado = primeiro_dia_mes + timedelta(days=dias_para_sabado)
     limite_terca = primeiro_sabado - timedelta(days=4)
     
-    # Bloqueia se hoje estiver entre a quarta e o sábado
     if limite_terca < hoje <= primeiro_sabado:
         return False, primeiro_sabado
     return True, None
 
-# --- LOGIN ---
+# --- CONTROLE DE ESTADO ---
 if 'autenticado' not in st.session_state:
     st.session_state.autenticado = False
+if 'exibir_cadastro_completo' not in st.session_state:
+    st.session_state.exibir_cadastro_completo = False
 
+# --- TELA DE LOGIN ---
 if not st.session_state.autenticado:
     st.title("⛪ Acesso ao Sistema")
     senha = st.text_input("Senha de Acesso:", type="password")
@@ -50,17 +52,18 @@ else:
 
     if st.sidebar.button("Sair"):
         st.session_state.autenticado = False
+        st.session_state.exibir_cadastro_completo = False
         st.rerun()
 
     st.title("📝 Registro de Prontuários")
 
     if not acesso_liberado:
         st.error(f"⚠️ Sistema Bloqueado.")
-        st.info(f"O período de lançamentos encerrou. O sistema será liberado após o primeiro sábado ({data_liberado.strftime('%d/%m/%Y')}).")
+        st.info(f"O período de lançamentos encerrou. Liberação após: {data_liberado.strftime('%d/%m/%Y')}")
     else:
-        # --- CAMPOS SOLICITADOS ---
+        # --- CAMPOS INICIAIS (SEMPRE VISÍVEIS) ---
         with st.container(border=True):
-            st.subheader("Informações Iniciais")
+            st.subheader("Informações de Entrega")
             tipo_solicitante = st.radio("Solicitante:", ["Diácono", "Irmã da Piedade"], horizontal=True)
             nome_solicitante = st.text_input(f"Nome do(a) {tipo_solicitante}:")
             
@@ -70,38 +73,51 @@ else:
             
             local_retirada = st.radio("Aonde retirar:", ["Pq. Guarani", "Itaquera"], horizontal=True)
 
+        # --- BOTÃO PARA REVELAR CADASTRO NOVO ---
+        if not st.session_state.exibir_cadastro_completo:
+            if st.button("🆕 É um Prontuário Novo? Clique aqui para cadastrar dados completos"):
+                st.session_state.exibir_cadastro_completo = True
+                st.rerun()
+
+        # --- DADOS DO ASSISTIDO (SÓ APARECE SE FOR NOVO) ---
+        if st.session_state.exibir_cadastro_completo:
+            st.divider()
+            st.subheader("📋 Cadastro de Prontuário Novo")
+            nome_completo = st.text_input("Nome Completo do Assistido:")
+            
+            d1, d2, d3 = st.columns(3)
+            idade = d1.number_input("Idade:", min_value=0, step=1)
+            tempo_batismo = d2.text_input("Tempo de Batismo:")
+            estado_civil = d3.selectbox("Estado Civil:", ["Solteiro(a)", "Casado(a)", "Viúvo(a)", "Desquitado(a)"])
+
+            nome_conjuge, idade_conjuge, tempo_batismo_conjuge = None, None, None
+            if estado_civil == "Casado(a)":
+                with st.expander("Informações do Cônjuge", expanded=True):
+                    nome_conjuge = st.text_input("Nome do Cônjuge:")
+                    cc1, cc2 = st.columns(2)
+                    idade_conjuge = cc1.number_input("Idade Cônjuge:", min_value=0)
+                    tempo_batismo_conjuge = cc2.text_input("Tempo Batismo Cônjuge:")
+
+            st.subheader("Endereço")
+            endereco = st.text_input("Endereço Completo:")
+            b1, b2 = st.columns([2, 1])
+            bairro = b1.text_input("Bairro:")
+            cep = b2.text_input("CEP:")
+            
+            if st.button("❌ Cancelar Cadastro Novo"):
+                st.session_state.exibir_cadastro_completo = False
+                st.rerun()
+        else:
+            # Se não for novo, os campos de texto longo ficam vazios para o banco
+            nome_completo, idade, tempo_batismo, estado_civil = "", 0, "", ""
+            nome_conjuge, idade_conjuge, tempo_batismo_conjuge = None, None, None
+            endereco, bairro, cep = "", "", ""
+
+        # --- BOTÃO SALVAR ---
         st.divider()
-
-        # --- DADOS DO ASSISTIDO ---
-        st.subheader("Dados do Prontuário (Completo)")
-        nome_completo = st.text_input("Nome Completo do Assistido:")
-        
-        d1, d2, d3 = st.columns(3)
-        idade = d1.number_input("Idade:", min_value=0, step=1)
-        tempo_batismo = d2.text_input("Tempo de Batismo:")
-        estado_civil = d3.selectbox("Estado Civil:", ["Solteiro(a)", "Casado(a)", "Viúvo(a)", "Desquitado(a)"])
-
-        nome_conjuge, idade_conjuge, tempo_batismo_conjuge = None, None, None
-        if estado_civil == "Casado(a)":
-            with st.expander("Informações do Cônjuge", expanded=True):
-                nome_conjuge = st.text_input("Nome do Cônjuge:")
-                cc1, cc2 = st.columns(2)
-                idade_conjuge = cc1.number_input("Idade Cônjuge:", min_value=0)
-                tempo_batismo_conjuge = cc2.text_input("Tempo Batismo Cônjuge:")
-
-        st.subheader("Endereço")
-        endereco = st.text_input("Endereço Completo:")
-        b1, b2 = st.columns([2, 1])
-        bairro = b1.text_input("Bairro:")
-        cep = b2.text_input("CEP:")
-
-        # --- BOTÕES ---
-        st.write("")
-        btn_salvar, btn_novo = st.columns(2)
-        
-        if btn_salvar.button("💾 Salvar Informações", type="primary", use_container_width=True):
-            if not nome_completo or not nome_solicitante:
-                st.warning("Preencha o Nome e o Solicitante.")
+        if st.button("💾 Salvar Todas as Informações", type="primary", use_container_width=True):
+            if not nome_solicitante or not num_prontuario:
+                st.warning("Por favor, preencha pelo menos o Solicitante e o Número do Prontuário.")
             else:
                 dados = {
                     "tipo_solicitante": tipo_solicitante,
@@ -114,7 +130,7 @@ else:
                     "tempo_batismo": tempo_batismo,
                     "estado_civil": estado_civil,
                     "nome_conjuge": nome_conjuge,
-                    "idade_conjuge": idade_conjuge if idade_conjuge else None,
+                    "idade_conjuge": int(idade_conjuge) if idade_conjuge else None,
                     "tempo_batismo_conjuge": tempo_batismo_conjuge,
                     "endereco": endereco,
                     "bairro": bairro,
@@ -123,9 +139,10 @@ else:
                 }
                 try:
                     supabase.table("registros_piedade").insert(dados).execute()
-                    st.success("✅ Registro salvo no banco online!")
+                    st.success("✅ Registro salvo com sucesso!")
+                    # Reseta o estado para a próxima entrada
+                    st.session_state.exibir_cadastro_completo = False
+                    # Pequeno delay antes de recarregar
+                    st.rerun()
                 except Exception as e:
                     st.error(f"Erro ao salvar: {e}")
-
-        if btn_novo.button("🆕 Novo Prontuário", use_container_width=True):
-            st.rerun()
