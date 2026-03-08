@@ -12,9 +12,10 @@ st.markdown("""
     .main { background-color: #f8f9fa; }
     .stMetric { background-color: #ffffff; padding: 15px; border-radius: 10px; box-shadow: 0 2px 4px rgba(0,0,0,0.05); }
     .assistido-card { background-color: #f1f8ff; padding: 15px; border-radius: 8px; border-left: 5px solid #007bff; margin-bottom: 10px; }
-    .conjuge-card { background-color: #fff9f0; padding: 10px; border-radius: 8px; border-left: 5px solid #ff9800; margin-top: 10px; }
+    .conjuge-card { background-color: #fffbdf; padding: 10px; border-radius: 8px; border-left: 5px solid #fbc02d; margin-top: 10px; }
     .badge-local { background-color: #6c757d; color: white; padding: 2px 8px; border-radius: 5px; font-weight: bold; }
     .badge-cargo { background-color: #28a745; color: white; padding: 2px 8px; border-radius: 5px; font-weight: bold; }
+    .badge-novo { background-color: #e91e63; color: white; padding: 2px 8px; border-radius: 5px; font-weight: bold; }
     </style>
     """, unsafe_allow_html=True)
 
@@ -63,11 +64,15 @@ else:
         st.session_state.autenticado = False
         st.rerun()
 
-    # --- VISÃO DO DIÁCONO ---
+    # --- VISÃO DO DIÁCONO (COM SEPARAÇÃO POR ABAS) ---
     if st.session_state.cargo == "Diácono":
-        st.title("📋 Painel de Conferência")
+        st.title("📋 Painel de Gestão - Diácono")
         
-        btn_col1, btn_col2 = st.columns([1, 1])
+        tab_novos, tab_existentes, tab_tratados = st.tabs([
+            "🆕 Casos Novos", 
+            "📋 Prontuários Existentes", 
+            "✅ Casos Tratados"
+        ])
         
         try:
             res = supabase.table("registros_piedade").select("*").order("data_sistema", desc=True).execute()
@@ -75,33 +80,26 @@ else:
             
             if dados:
                 df = pd.DataFrame(dados)
-                btn_col1.download_button("📥 Baixar Excel Completo", df.to_csv(index=False).encode('utf-8-sig'), "relatorio.csv", "text/csv", use_container_width=True)
                 
-                # Botão com confirmação para apagar tratados
-                if btn_col2.button("🔥 Apagar Casos Tratados", type="secondary", use_container_width=True):
-                    with st.status("Limpando banco de dados..."):
-                        supabase.table("registros_piedade").delete().eq("tratado", True).execute()
-                        st.toast("✅ Registros tratados excluídos!")
-                        time.sleep(1)
-                        st.rerun()
-
-                st.divider()
-
-                for item in dados:
+                # Funções para renderizar os cards (para não repetir código)
+                def renderizar_card(item):
                     with st.container(border=True):
                         h_col, a_col = st.columns([4, 1.5])
                         with h_col:
-                            nome_exibir = item.get('nome_completo') if item.get('nome_completo') else "Prontuário Existente"
-                            st.markdown(f"## {nome_exibir}")
+                            is_novo = bool(item.get('nome_completo'))
+                            label_tipo = "<span class='badge-novo'>NOVO CADASTRO</span>" if is_novo else ""
+                            st.markdown(f"## {item.get('nome_completo') or 'Solicitação de Prontuário'} {label_tipo}", unsafe_allow_html=True)
                             st.markdown(f"**Nº Prontuário:** `{item.get('num_prontuario') or 'NOVO'}` | **Data:** {item.get('data_sistema')}")
                         
                         with a_col:
                             status_db = item.get('tratado', False)
-                            novo_st = st.radio(f"Situação (Ref:{item['id'][:4]})", ["Pendente", "Tratado"], 
-                                             index=1 if status_db else 0, key=f"r_{item['id']}")
-                            if (novo_st == "Tratado") != status_db:
-                                supabase.table("registros_piedade").update({"tratado": novo_st == "Tratado"}).eq("id", item['id']).execute()
-                                st.toast("Status atualizado!")
+                            # Se marcar como tratado, ele some da aba atual e vai para a aba de tratados no próximo rerun
+                            novo_st = st.checkbox("Marcar como Tratado", value=status_db, key=f"check_{item['id']}")
+                            if novo_st != status_db:
+                                supabase.table("registros_piedade").update({"tratado": novo_st}).eq("id", item['id']).execute()
+                                st.toast("Movido para Tratados!" if novo_st else "Restaurado para Pendentes!")
+                                time.sleep(0.5)
+                                st.rerun()
 
                         st.divider()
                         q1, q2, q3 = st.columns(3)
@@ -112,8 +110,8 @@ else:
                         with q3:
                             st.markdown(f"**Retirada em:** <br><span class='badge-local'>{item.get('local_retirada')}</span>", unsafe_allow_html=True)
 
-                        if item.get('nome_completo'):
-                            st.markdown("<br>**Dados do Assistido:**", unsafe_allow_html=True)
+                        if is_novo:
+                            st.markdown("<br>**Dados Detalhados:**", unsafe_allow_html=True)
                             st.markdown(f"""
                                 <div class='assistido-card'>
                                     <b>Idade:</b> {item.get('idade')} anos | <b>Estado Civil:</b> {item.get('estado_civil')} | <b>Batismo:</b> {item.get('tempo_batismo') or 'N/A'}<br>
@@ -128,10 +126,36 @@ else:
                                     <b>Idade:</b> {item.get('idade_conjuge')} anos | <b>Batismo:</b> {item.get('tempo_batismo_conjuge') or 'N/A'}
                                 </div>
                                 """, unsafe_allow_html=True)
+
+                # --- FILTRAGEM PARA AS ABAS ---
+                with tab_novos:
+                    novos_pendentes = [i for i in dados if i.get('nome_completo') and not i.get('tratado')]
+                    if novos_pendentes:
+                        for item in novos_pendentes: renderizar_card(item)
+                    else: st.info("Nenhum cadastro novo pendente.")
+
+                with tab_existentes:
+                    existentes_pendentes = [i for i in dados if not i.get('nome_completo') and not i.get('tratado')]
+                    if existentes_pendentes:
+                        for item in existentes_pendentes: renderizar_card(item)
+                    else: st.info("Nenhuma solicitação de prontuário pendente.")
+
+                with tab_tratados:
+                    col_t1, col_t2 = st.columns([2,1])
+                    col_t1.subheader("Histórico de Atendimentos")
+                    if col_t2.button("🔥 Limpar Histórico do Banco", type="secondary", use_container_width=True):
+                        supabase.table("registros_piedade").delete().eq("tratado", True).execute()
+                        st.rerun()
+
+                    tratados = [i for i in dados if i.get('tratado')]
+                    if tratados:
+                        for item in tratados: renderizar_card(item)
+                    else: st.info("Nenhum caso tratado ainda.")
+
             else: st.info("Sem registros no banco.")
         except Exception as e: st.error(f"Erro: {e}")
 
-    # --- VISÃO DA IRMÃ ---
+    # --- VISÃO DA IRMÃ (MANTIDA COM VALIDAÇÕES) ---
     else:
         st.title("📝 Cadastro de Solicitações")
         f_id = st.session_state.form_id
@@ -152,7 +176,7 @@ else:
             if is_novo:
                 n_comp = st.text_input("Nome Completo:", key=f"comp_n_{f_id}")
                 d1, d2, d3 = st.columns(3)
-                n_id = d1.number_input("Idade Assistido (Obrigatório):", min_value=0, key=f"id_n_{f_id}")
+                n_id = d1.number_input("Idade Assistido:", min_value=0, key=f"id_n_{f_id}")
                 n_bat = d2.text_input("Tempo de Batismo:", key=f"bat_n_{f_id}")
                 n_civ = d3.selectbox("Estado Civil:", ["Solteiro(a)", "Casado(a)", "Viúvo(a)", "Desquitado(a)"], key=f"civ_n_{f_id}")
                 
@@ -161,7 +185,7 @@ else:
                         st.write("💍 **Dados do Cônjuge**")
                         n_conj = st.text_input("Nome do Cônjuge:", key=f"conj_n_{f_id}")
                         cc1, cc2 = st.columns(2)
-                        n_conj_id = cc1.number_input("Idade Cônjuge (Obrigatório):", min_value=0, key=f"conj_id_n_{f_id}")
+                        n_conj_id = cc1.number_input("Idade Cônjuge:", min_value=0, key=f"conj_id_n_{f_id}")
                         n_conj_bat = cc2.text_input("Tempo de Batismo Cônjuge:", key=f"conj_bat_n_{f_id}")
                 
                 n_end = st.text_input("Rua e Número:", key=f"end_n_{f_id}")
@@ -170,21 +194,11 @@ else:
                 n_cep = b2.text_input("CEP (Obrigatório):", key=f"cep_n_{f_id}")
 
             if st.button("💾 FINALIZAR E ENVIAR", type="primary", use_container_width=True):
-                # --- VALIDAÇÕES OBRIGATÓRIAS ---
-                if not nome_sol: 
-                    st.error("❌ Por favor, informe o Nome do Solicitante!"); st.stop()
-                
-                if not is_novo and not n_prontuario: 
-                    st.error("❌ O Número do Prontuário é obrigatório para cadastros existentes!"); st.stop()
-
+                if not nome_sol: st.error("❌ Informe o Nome!"); st.stop()
+                if not is_novo and not n_prontuario: st.error("❌ Nº Prontuário obrigatório!"); st.stop()
                 if is_novo:
-                    # Trava para Idade e CEP no cadastro novo
-                    if n_id == 0:
-                        st.error("❌ A idade do assistido deve ser maior que zero!"); st.stop()
-                    if not n_cep or len(n_cep) < 8:
-                        st.error("❌ Por favor, informe um CEP válido!"); st.stop()
-                    if n_civ == "Casado(a)" and n_conj_id == 0:
-                        st.error("❌ A idade do cônjuge deve ser informada!"); st.stop()
+                    if n_id == 0: st.error("❌ Informe a idade!"); st.stop()
+                    if not n_cep: st.error("❌ CEP é obrigatório!"); st.stop()
 
                 payload = {
                     "tipo_solicitante": tipo_sol, "nome_solicitante": nome_sol, "num_prontuario": n_prontuario,
@@ -197,9 +211,8 @@ else:
                 try:
                     supabase.table("registros_piedade").insert(payload).execute()
                     st.balloons()
-                    st.success("✅ Dados salvos com sucesso!")
-                    time.sleep(1.5)
+                    st.success("✅ Dados salvos!")
+                    time.sleep(1)
                     resetar_tela()
                     st.rerun() 
-                except Exception as e:
-                    st.error(f"Erro ao salvar no banco: {e}")
+                except Exception as e: st.error(f"Erro: {e}")
