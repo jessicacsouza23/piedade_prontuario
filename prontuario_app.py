@@ -16,6 +16,8 @@ st.markdown("""
     div[data-testid="stExpander"] { border: 1px solid #ddd; border-radius: 5px; background-color: white; }
     .badge-info { background-color: #e1f5fe; color: #01579b; padding: 2px 8px; border-radius: 4px; font-size: 0.8rem; font-weight: bold; }
     .nome-header { font-size: 1.2rem; font-weight: bold; color: #333; margin-bottom: 0px; }
+    /* Estilo para o topo */
+    .header-container { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; }
     </style>
     """, unsafe_allow_html=True)
 
@@ -53,6 +55,15 @@ if not st.session_state.autenticado:
                 st.rerun()
             else: st.error("Senha incorreta.")
 else:
+    # --- CABEÇALHO COM BOTÃO SAIR ---
+    col_tit, col_sair = st.columns([5, 1])
+    with col_tit:
+        st.subheader(f"👤 {st.session_state.cargo}")
+    with col_sair:
+        if st.button("🚪 Sair", use_container_width=True):
+            st.session_state.autenticado = False
+            st.rerun()
+
     # --- VISÃO DO DIÁCONO ---
     if st.session_state.cargo == "Diácono":
         st.title("📋 Gestão de Pedidos")
@@ -83,9 +94,8 @@ else:
                             supabase.table("registros_piedade").update({"tratado": True}).eq("id", item['id']).execute()
                             st.rerun()
 
-                    # Detalhes Ocultos (Diminui o tamanho da tela)
                     if item.get('nome_completo'):
-                        with st.expander("🔍 Ver detalhes do cadastro"):
+                        with st.expander("🔍 Detalhes do Cadastro"):
                             d1, d2 = st.columns(2)
                             d1.markdown(f"**Idade:** {item.get('idade')} | **Civil:** {item.get('estado_civil')} | **Batismo:** {item.get('tempo_batismo')}")
                             d1.markdown(f"**Endereço:** {item.get('endereco')}, {item.get('bairro')} | **CEP:** {item.get('cep')}")
@@ -140,7 +150,7 @@ else:
 
             if st.button("💾 SALVAR", type="primary", use_container_width=True):
                 if not nome_sol or (is_novo and (n_id == 0 or not n_cep)):
-                    st.error("Preencha os campos obrigatórios (Nome, Idade, CEP)"); st.stop()
+                    st.error("Preencha Nome, Idade e CEP"); st.stop()
 
                 payload = {
                     "tipo_solicitante": tipo_sol, "nome_solicitante": nome_sol, "num_prontuario": n_pront,
