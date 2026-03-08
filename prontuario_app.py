@@ -33,8 +33,8 @@ def inicializar_conexao():
 
 try:
     supabase: Client = inicializar_conexao()
-except:
-    st.error("Erro de conexão.")
+except Exception as e:
+    st.error(f"Erro de conexão: {e}")
     st.stop()
 
 # --- ESTADO DA SESSÃO ---
@@ -42,8 +42,10 @@ if 'autenticado' not in st.session_state: st.session_state.autenticado = False
 if 'lista_prontuarios' not in st.session_state: st.session_state.lista_prontuarios = []
 
 def resetar_tela():
+    # Limpa apenas os dados do formulário, mantém o login
     for key in list(st.session_state.keys()):
-        if key not in ['autenticado', 'cargo']: st.session_state.pop(key)
+        if key not in ['autenticado', 'cargo']: 
+            st.session_state.pop(key)
     st.session_state.lista_prontuarios = []
 
 # --- LOGIN ---
@@ -55,8 +57,8 @@ if not st.session_state.autenticado:
         if st.button("Entrar", use_container_width=True):
             if cargo_sel == "Reserva de Cesta Básica" and is_sistema_bloqueado():
                 st.markdown(f"<div class='bloqueio-msg'><h3>🚫 BLOQUEADO</h3><p>Entre em contato com Irmã Cal: (11) 97393-9407</p></div>", unsafe_allow_html=True)
-            elif (cargo_sel == "Lançados" and senha == st.secrets.get("SENHA_DIACONO")) or \
-                 (cargo_sel == "Reserva de Cesta Básica" and senha == st.secrets.get("SENHA_IRMAS")):
+            elif (cargo_sel == "Lançados" and senha == st.secrets.get("SENHA_DIACONO", "diacono123")) or \
+                 (cargo_sel == "Reserva de Cesta Básica" and senha == st.secrets.get("SENHA_IRMAS", "piedade123")):
                 st.session_state.autenticado, st.session_state.cargo = True, cargo_sel
                 st.rerun()
             else: st.error("Senha incorreta.")
@@ -64,7 +66,7 @@ else:
     col_tit, col_sair = st.columns([5, 1])
     with col_tit: st.subheader(f"👤 {st.session_state.cargo}")
     with col_sair:
-        if st.button("🚪 Sair"):
+        if st.button("🚪 Sair", use_container_width=True):
             st.session_state.autenticado = False
             st.rerun()
 
@@ -73,12 +75,15 @@ else:
         st.title("📋 Pedidos para Lançamento")
         try:
             res = supabase.table("registros_piedade").select("*").eq("tratado", False).order("data_sistema", desc=True).execute()
+            if not res.data:
+                st.info("Nenhum pedido pendente.")
             for item in res.data:
                 with st.container(border=True):
                     c1, c2, c3, c4 = st.columns([3, 2, 2, 1])
                     with c1:
-                        st.markdown(f"<div class='nome-header'>{item.get('nome_completo') or 'Prontuário: ' + item.get('num_prontuario')}</div>", unsafe_allow_html=True)
-                        if item.get('comum_assistido'): st.markdown(f"<span class='badge-comum'>⛪ Comum: {item.get('comum_assistido')}</span>", unsafe_allow_html=True)
+                        st.markdown(f"<div class='nome-header'>{item.get('nome_completo') or 'Prontuário: ' + str(item.get('num_prontuario'))}</div>", unsafe_allow_html=True)
+                        if item.get('comum_assistido'): 
+                            st.markdown(f"<span class='badge-comum'>⛪ Comum: {item.get('comum_assistido')}</span>", unsafe_allow_html=True)
                         st.caption(f"📍 {item.get('local_retirada')} | 📅 {item.get('data_sistema')}")
                     with c2:
                         st.markdown(f"**📦 {item.get('quantidade_cestas')} Cesta(s)**")
@@ -86,15 +91,17 @@ else:
                         st.markdown(f"**👤 {item.get('nome_solicitante')}**")
                         st.caption(f"De: {item.get('comum_solicitante')}")
                     with c4:
-                        if st.button("Lançar", key=f"l_{item['id']}"):
+                        if st.button("Lançar", key=f"l_{item['id']}", use_container_width=True):
                             supabase.table("registros_piedade").update({"tratado": True}).eq("id", item['id']).execute()
                             st.rerun()
-        except: st.info("Nenhum pedido pendente.")
+        except Exception as e:
+            st.error(f"Erro ao carregar dados: {e}")
 
     # --- VISÃO: RESERVA DE CESTA ---
     else:
         st.title("📝 Nova Reserva")
         
+        # 1. SOLICITANTE (Comum aqui é obrigatória)
         with st.container(border=True):
             st.markdown("### 1. Identificação do Solicitante")
             col1, col2, col3 = st.columns([1, 1.5, 1.5])
@@ -104,7 +111,7 @@ else:
 
         st.divider()
         
-        # ÁREA DE ADIÇÃO DE PRONTUÁRIOS
+        # 2. LISTA DE PRONTUÁRIOS (Sem comum aqui)
         st.markdown("### 2. Prontuários e Cestas")
         with st.expander("➕ Adicionar Prontuário à Lista", expanded=True):
             col_p1, col_p2 = st.columns([2, 1])
@@ -113,10 +120,9 @@ else:
             if st.button("Adicionar na Lista"):
                 if num_p:
                     st.session_state.lista_prontuarios.append({"pront": num_p, "qtd": qtd_p})
-                    st.toast(f"Prontuário {num_p} adicionado!")
+                    st.rerun()
                 else: st.warning("Digite o número do prontuário.")
 
-        # Mostrar lista atual
         if st.session_state.lista_prontuarios:
             for i, p in enumerate(st.session_state.lista_prontuarios):
                 st.markdown(f"<div class='prontuario-item'><b>Prontuário:</b> {p['pront']} | <b>Cestas:</b> {p['qtd']}</div>", unsafe_allow_html=True)
@@ -126,11 +132,11 @@ else:
 
         st.divider()
 
-        # ÁREA DE CADASTRO NOVO
+        # 3. CADASTRO NOVO (Comum aqui é obrigatória)
         st.markdown("### 3. Cadastro Novo (Se houver)")
         is_novo = st.toggle("HÁ UM NOVO CADASTRO PARA INCLUIR?")
         
-        n_comp, n_id, n_bat, n_civ, n_conj, n_conj_id, n_end, n_cep, c_ast = "", 0, "", "Solteiro(a)", "", 0, "", "", ""
+        n_comp, n_id, n_bat, n_civ, n_conj, n_conj_id, n_end, n_cep, c_ast, q_novo = "", 0, "", "Solteiro(a)", "", 0, "", "", "", 1
         
         if is_novo:
             with st.container(border=True):
@@ -152,29 +158,38 @@ else:
             if not n_sol or not c_sol:
                 st.error("Nome e Comum do solicitante são obrigatórios!"); st.stop()
             
+            sucesso = False
             try:
-                # 1. Salvar prontuários da lista
+                # Salvar Prontuários da Lista
                 for item in st.session_state.lista_prontuarios:
                     payload = {
                         "tipo_solicitante": t_sol, "nome_solicitante": n_sol, "comum_solicitante": c_sol,
-                        "num_prontuario": item['pront'], "quantidade_cestas": item['qtd'], "local_retirada": loc_ret,
-                        "data_sistema": datetime.now().strftime('%d/%m/%Y %H:%M'), "tratado": False
+                        "num_prontuario": str(item['pront']), "quantidade_cestas": int(item['qtd']), 
+                        "local_retirada": loc_ret, "data_sistema": datetime.now().strftime('%d/%m/%Y %H:%M'), 
+                        "tratado": False
                     }
                     supabase.table("registros_piedade").insert(payload).execute()
+                    sucesso = True
                 
-                # 2. Salvar cadastro novo se houver
+                # Salvar Cadastro Novo
                 if is_novo and n_comp:
                     payload_n = {
                         "tipo_solicitante": t_sol, "nome_solicitante": n_sol, "comum_solicitante": c_sol,
-                        "comum_assistido": c_ast, "nome_completo": n_comp, "quantidade_cestas": q_novo,
-                        "idade": n_id, "estado_civil": n_civ, "nome_conjuge": n_conj, "idade_conjuge": n_conj_id,
-                        "endereco": n_end, "cep": n_cep, "local_retirada": loc_ret,
-                        "data_sistema": datetime.now().strftime('%d/%m/%Y %H:%M'), "tratado": False
+                        "comum_assistido": c_ast, "nome_completo": n_comp, "quantidade_cestas": int(q_novo),
+                        "idade": int(n_id), "estado_civil": n_civ, "nome_conjuge": n_conj, 
+                        "idade_conjuge": int(n_conj_id), "endereco": n_end, "cep": n_cep, 
+                        "local_retirada": loc_ret, "data_sistema": datetime.now().strftime('%d/%m/%Y %H:%M'), 
+                        "tratado": False
                     }
                     supabase.table("registros_piedade").insert(payload_n).execute()
+                    sucesso = True
                 
-                st.success("✅ Tudo salvo com sucesso!")
-                time.sleep(1)
-                resetar_tela()
-                st.rerun()
-            except: st.error("Erro ao salvar.")
+                if sucesso:
+                    st.success("✅ Reserva gravada com sucesso!")
+                    time.sleep(1.5)
+                    resetar_tela()
+                    st.rerun()
+                else:
+                    st.warning("Adicione pelo menos um prontuário ou preencha o cadastro novo.")
+            except Exception as e:
+                st.error(f"Erro detalhado do banco: {e}")
