@@ -2,8 +2,20 @@ import streamlit as st
 from supabase import create_client, Client
 from datetime import datetime, timedelta
 import pandas as pd
+import time
 
-st.set_page_config(page_title="Sistema Piedade", layout="wide")
+st.set_page_config(page_title="Sistema Piedade", layout="wide", initial_sidebar_state="collapsed")
+
+# --- ESTILIZAÇÃO CSS PARA MODERNIZAÇÃO ---
+st.markdown("""
+    <style>
+    .main { background-color: #f8f9fa; }
+    .stMetric { background-color: #ffffff; padding: 15px; border-radius: 10px; box-shadow: 0 2px 4px rgba(0,0,0,0.05); }
+    .assistido-card { background-color: #e3f2fd; padding: 15px; border-radius: 8px; border-left: 5px solid #1976d2; }
+    .badge-local { background-color: #ff9800; color: white; padding: 2px 8px; border-radius: 5px; font-weight: bold; }
+    .badge-cargo { background-color: #4caf50; color: white; padding: 2px 8px; border-radius: 5px; font-weight: bold; }
+    </style>
+    """, unsafe_all_tags=True)
 
 # --- CONEXÃO COM O BANCO ---
 def inicializar_conexao():
@@ -37,139 +49,142 @@ if 'autenticado' not in st.session_state:
 # --- LOGIN ---
 if not st.session_state.autenticado:
     st.title("⛪ Acesso ao Sistema Piedade")
-    cargo_sel = st.selectbox("Entrar como:", ["Diácono", "Irmã da Piedade"])
-    senha = st.text_input("Senha:", type="password")
-    if st.button("Entrar", use_container_width=True):
-        if (cargo_sel == "Diácono" and senha == st.secrets.get("SENHA_DIACONO", "diacono123")) or \
-           (cargo_sel == "Irmã da Piedade" and senha == st.secrets.get("SENHA_IRMAS", "piedade123")):
-            st.session_state.autenticado, st.session_state.cargo = True, cargo_sel
-            st.rerun()
-        else: st.error("Senha incorreta.")
+    with st.container(border=True):
+        cargo_sel = st.selectbox("Entrar como:", ["Diácono", "Irmã da Piedade"])
+        senha = st.text_input("Senha:", type="password")
+        if st.button("Entrar", use_container_width=True):
+            if (cargo_sel == "Diácono" and senha == st.secrets.get("SENHA_DIACONO", "diacono123")) or \
+               (cargo_sel == "Irmã da Piedade" and senha == st.secrets.get("SENHA_IRMAS", "piedade123")):
+                st.session_state.autenticado, st.session_state.cargo = True, cargo_sel
+                st.rerun()
+            else: st.error("Senha incorreta.")
 else:
     st.sidebar.title(f"Usuário: {st.session_state.cargo}")
     if st.sidebar.button("Sair"):
         st.session_state.autenticado = False
         st.rerun()
 
-    # --- VISÃO DO DIÁCONO (FICHAS) ---
+    # --- VISÃO DO DIÁCONO (DESIGN MODERNO) ---
     if st.session_state.cargo == "Diácono":
-        st.title("📋 Fichas de Prontuários")
+        st.title("📋 Painel de Conferência de Prontuários")
+        
         try:
             res = supabase.table("registros_piedade").select("*").order("data_sistema", desc=True).execute()
             dados = res.data
             if dados:
                 df = pd.DataFrame(dados)
-                st.download_button("📥 Gerar Excel", df.to_csv(index=False).encode('utf-8-sig'), "relatorio.csv", "text/csv")
+                st.download_button("📥 Exportar Relatório para Excel", df.to_csv(index=False).encode('utf-8-sig'), "relatorio_piedade.csv", "text/csv")
+                
                 for item in dados:
                     with st.container(border=True):
-                        c_id, c_st = st.columns([3, 1])
-                        c_id.subheader(f"📄 Prontuário: {item.get('num_prontuario') or 'NOVO'}")
-                        c_id.caption(f"📅 Data: {item.get('data_sistema')}")
+                        # Cabeçalho do Card
+                        header_col, action_col = st.columns([4, 1])
                         
-                        # Exibe se foi Diácono ou Irmã que solicitou
-                        st.write(f"**Solicitante:** {item.get('tipo_solicitante')} - {item.get('nome_solicitante')}")
+                        with header_col:
+                            nome_exibir = item.get('nome_completo') if item.get('nome_completo') else "Prontuário Existente"
+                            st.markdown(f"## {nome_exibir}")
+                            st.markdown(f"**Nº Prontuário:** `{item.get('num_prontuario') or 'NOVO'}` | **Data:** {item.get('data_sistema')}")
                         
-                        novo_st = c_st.radio(f"Tratado? (ID:{item['id'][:4]})", ["Não", "Sim"], index=1 if item.get('tratado') else 0, key=f"r_{item['id']}")
-                        if (novo_st == "Sim") != item.get('tratado'):
-                            supabase.table("registros_piedade").update({"tratado": novo_st == "Sim"}).eq("id", item['id']).execute()
-                        
-                        col1, col2, col3 = st.columns(3)
-                        col1.metric("Cestas", item.get('quantidade_cestas'))
-                        col2.metric("Local Retirada", item.get('local_retirada'))
-                        
-                        if item.get('nome_completo'):
-                            st.divider()
-                            st.write(f"**Assistido:** {item.get('nome_completo')} | **Idade:** {item.get('idade')}")
-                            st.write(f"**Estado Civil:** {item.get('estado_civil')}")
-                            if item.get('nome_conjuge'):
-                                st.info(f"**Cônjuge:** {item.get('nome_conjuge')} | **Idade Cônjuge:** {item.get('idade_conjuge')} | **Batismo Cônjuge:** {item.get('tempo_batismo_conjuge')}")
-                            st.write(f"**Endereço:** {item.get('endereco')}, {item.get('bairro')} - CEP: {item.get('cep')}")
-            else: st.info("Sem registros.")
-        except Exception as e: st.error(f"Erro: {e}")
+                        with action_col:
+                            status_db = item.get('tratado', False)
+                            novo_st = st.radio(f"Situação (Ref:{item['id'][:4]})", ["Pendente", "Tratado"], 
+                                             index=1 if status_db else 0, key=f"r_{item['id']}")
+                            if (novo_st == "Tratado") != status_db:
+                                supabase.table("registros_piedade").update({"tratado": novo_st == "Tratado"}).eq("id", item['id']).execute()
+                                st.toast("Status atualizado com sucesso!")
 
-    # --- VISÃO DA IRMÃ (CADASTRO) ---
+                        # Linha de Informações Rápidas
+                        st.markdown("---")
+                        q1, q2, q3 = st.columns(3)
+                        with q1:
+                            st.markdown(f"**Solicitado por:** <br><span class='badge-cargo'>{item.get('tipo_solicitante')}</span> {item.get('nome_solicitante')}", unsafe_allow_html=True)
+                        with q2:
+                            st.markdown(f"**Quantidade:** <br>📦 {item.get('quantidade_cestas')} Cesta(s)", unsafe_allow_html=True)
+                        with q3:
+                            st.markdown(f"**Retirada em:** <br><span class='badge-local'>{item.get('local_retirada')}</span>", unsafe_allow_html=True)
+
+                        # Detalhes do Assistido (se houver cadastro novo)
+                        if item.get('nome_completo'):
+                            with st.expander("🔍 Ver Detalhes Completos do Cadastro", expanded=True):
+                                st.markdown(f"""
+                                <div class='assistido-card'>
+                                    <b>Idade:</b> {item.get('idade')} anos | <b>Batismo:</b> {item.get('tempo_batismo') or 'Não inf.'} | <b>Estado Civil:</b> {item.get('estado_civil')}<br>
+                                    <b>Endereço:</b> {item.get('endereco')}, {item.get('bairro')} - CEP: {item.get('cep')}
+                                </div>
+                                """, unsafe_allow_html=True)
+                                if item.get('nome_conjuge'):
+                                    st.markdown(f"💍 **Cônjuge:** {item.get('nome_conjuge')} ({item.get('idade_conjuge')} anos) - Batismo: {item.get('tempo_batismo_conjuge')}")
+            else: st.info("Nenhum prontuário registrado até o momento.")
+        except Exception as e: st.error(f"Erro ao carregar dados: {e}")
+
+    # --- VISÃO DA IRMÃ (CADASTRO COM RESET) ---
     else:
         liberado, data_lib = verificar_bloqueio()
-        st.title("📝 Cadastro de Pedidos")
+        st.title("📝 Cadastro de Solicitações")
+        
         if not liberado:
-            st.error(f"⚠️ Sistema Bloqueado. Liberação: {data_lib.strftime('%d/%m/%Y')}")
+            st.error(f"⚠️ Sistema em período de bloqueio. Liberação: {data_lib.strftime('%d/%m/%Y')}")
         else:
             with st.container(border=True):
-                st.subheader("1. Identificação")
-                tipo_sol = st.radio("Quem está solicitando?", ["Diácono", "Irmã da Piedade"], horizontal=True)
-                nome_sol = st.text_input(f"Nome do(a) {tipo_sol} (Obrigatório):")
+                st.subheader("1. Dados da Solicitação")
+                tipo_sol = st.radio("Quem solicita?", ["Diácono", "Irmã da Piedade"], horizontal=True)
+                nome_sol = st.text_input(f"Nome do(a) {tipo_sol}:", key="nome_sol")
                 
-                col_p1, col_p2 = st.columns([2, 1])
-                n_prontuario = col_p1.text_input("Número do Prontuário (Obrigatório se NÃO for Novo):")
-                q_cestas = col_p2.number_input("Qtd. Cestas:", min_value=1, step=1)
+                c_p1, c_p2 = st.columns([2, 1])
+                n_prontuario = c_p1.text_input("Número do Prontuário (Obrigatório se não for Novo):", key="n_pront")
+                q_cestas = c_p2.number_input("Cestas:", min_value=1, step=1, key="q_cestas")
                 
-                loc_retirada = st.radio("Local de Retirada:", ["Pq. Guarani", "Itaquera"], horizontal=True)
+                loc_retirada = st.radio("Local de Retirada:", ["Pq. Guarani", "Itaquera"], horizontal=True, key="local")
 
                 st.divider()
-                is_novo = st.toggle("🆕 ESTE É UM CADASTRO NOVO?")
+                is_novo = st.toggle("🆕 CADASTRAR COMO PRONTUÁRIO NOVO", key="is_novo")
 
-                # Variáveis padrão
+                # Variáveis para o novo cadastro
                 n_comp, n_id, n_bat, n_civ, n_conj, n_conj_id, n_conj_bat = "", 0, "", "Solteiro(a)", "", 0, ""
                 n_end, n_bai, n_cep = "", "", ""
 
                 if is_novo:
                     st.subheader("📋 Dados do Novo Assistido")
-                    n_comp = st.text_input("Nome Completo do Assistido (Obrigatório):")
-                    
+                    n_comp = st.text_input("Nome Completo:", key="n_comp")
                     d1, d2, d3 = st.columns(3)
-                    n_id = d1.number_input("Idade do Assistido:", min_value=0)
-                    n_bat = d2.text_input("Tempo de Batismo (Opcional):")
-                    n_civ = d3.selectbox("Estado Civil:", ["Solteiro(a)", "Casado(a)", "Viúvo(a)", "Desquitado(a)"])
+                    n_id = d1.number_input("Idade:", min_value=0, key="n_id")
+                    n_bat = d2.text_input("Tempo de Batismo:", key="n_bat")
+                    n_civ = d3.selectbox("Estado Civil:", ["Solteiro(a)", "Casado(a)", "Viúvo(a)", "Desquitado(a)"], key="n_civ")
                     
-                    # Campos extras para Casados
                     if n_civ == "Casado(a)":
                         with st.container(border=True):
                             st.write("💍 **Dados do Cônjuge**")
-                            n_conj = st.text_input("Nome do Cônjuge (Obrigatório):")
-                            c_col1, c_col2 = st.columns(2)
-                            n_conj_id = c_col1.number_input("Idade do Cônjuge:", min_value=0)
-                            n_conj_bat = c_col2.text_input("Tempo de Batismo do Cônjuge:")
+                            n_conj = st.text_input("Nome do Cônjuge:", key="n_conj")
+                            cc1, cc2 = st.columns(2)
+                            n_conj_id = cc1.number_input("Idade Cônjuge:", min_value=0, key="n_conj_id")
+                            n_conj_bat = cc2.text_input("Tempo de Batismo Cônjuge:", key="n_conj_bat")
                     
-                    st.markdown("#### Endereço")
-                    n_end = st.text_input("Rua e Número (Obrigatório):")
+                    st.markdown("#### Endereço Residencial")
+                    n_end = st.text_input("Rua e Número:", key="n_end")
                     b1, b2 = st.columns(2)
-                    n_bai = b1.text_input("Bairro (Obrigatório):")
-                    n_cep = b2.text_input("CEP (Obrigatório):")
+                    n_bai = b1.text_input("Bairro:", key="n_bai")
+                    n_cep = b2.text_input("CEP:", key="n_cep")
 
-                if st.button("💾 SALVAR REGISTRO", type="primary", use_container_width=True):
-                    erro = False
-                    if not nome_sol: st.error(f"Informe o nome do(a) {tipo_sol}."); erro = True
-                    if not is_novo and not n_prontuario: st.error("O Número do Prontuário é obrigatório."); erro = True
-                    if is_novo:
-                        if not n_comp or n_id == 0 or not n_end or not n_bai or not n_cep:
-                            st.error("Preencha Nome, Idade e Endereço do novo cadastro."); erro = True
-                        if n_civ == "Casado(a)" and not n_conj:
-                            st.error("Nome do cônjuge obrigatório para casados."); erro = True
+                if st.button("💾 FINALIZAR E ENVIAR", type="primary", use_container_width=True):
+                    # Validação
+                    if not nome_sol: st.error("Nome do solicitante é obrigatório."); st.stop()
+                    if not is_novo and not n_prontuario: st.error("Número do prontuário é obrigatório."); st.stop()
+                    if is_novo and (not n_comp or not n_end or not n_bai): st.error("Preencha os dados do novo assistido."); st.stop()
 
-                    if not erro:
-                        data_atual = datetime.now().strftime('%d/%m/%Y')
-                        payload = {
-                            "tipo_solicitante": tipo_sol, 
-                            "nome_solicitante": nome_sol, 
-                            "num_prontuario": n_prontuario,
-                            "quantidade_cestas": int(q_cestas), 
-                            "local_retirada": loc_retirada, 
-                            "nome_completo": n_comp,
-                            "idade": int(n_id), 
-                            "tempo_batismo": n_bat, 
-                            "estado_civil": n_civ, 
-                            "nome_conjuge": n_conj,
-                            "idade_conjuge": int(n_conj_id),
-                            "tempo_batismo_conjuge": n_conj_bat,
-                            "endereco": n_end, 
-                            "bairro": n_bai, 
-                            "cep": n_cep, 
-                            "data_sistema": data_atual, 
-                            "tratado": False
-                        }
-                        try:
-                            supabase.table("registros_piedade").insert(payload).execute()
-                            st.success("Dados salvos")
-                            st.rerun()
-                        except Exception as e:
-                            st.error(f"Erro ao salvar: {e}")
+                    data_comp = datetime.now().strftime('%d/%m/%Y %H:%M')
+                    payload = {
+                        "tipo_solicitante": tipo_sol, "nome_solicitante": nome_sol, "num_prontuario": n_prontuario,
+                        "quantidade_cestas": int(q_cestas), "local_retirada": loc_retirada, "nome_completo": n_comp,
+                        "idade": int(n_id), "tempo_batismo": n_bat, "estado_civil": n_civ, "nome_conjuge": n_conj,
+                        "idade_conjuge": int(n_conj_id), "tempo_batismo_conjuge": n_conj_bat, "endereco": n_end,
+                        "bairro": n_bai, "cep": n_cep, "data_sistema": data_comp, "tratado": False
+                    }
+                    
+                    try:
+                        supabase.table("registros_piedade").insert(payload).execute()
+                        st.balloons() # Lança os balões
+                        st.success("Dados salvos") # Mensagem solicitada
+                        time.sleep(2) # Pequena pausa para ver os balões
+                        st.rerun() # Limpa todos os campos voltando ao estado inicial
+                    except Exception as e:
+                        st.error(f"Erro ao salvar: {e}")
