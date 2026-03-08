@@ -63,15 +63,13 @@ else:
         st.session_state.autenticado = False
         st.rerun()
 
-    # --- VISÃO DO DIÁCONO (COM FUNÇÃO DE APAGAR TRATADOS) ---
+    # --- VISÃO DO DIÁCONO ---
     if st.session_state.cargo == "Diácono":
         st.title("📋 Painel de Conferência")
         
-        # Colunas para botões de ação no topo
         btn_col1, btn_col2 = st.columns([1, 1])
         
         try:
-            # Busca dados para o relatório
             res = supabase.table("registros_piedade").select("*").order("data_sistema", desc=True).execute()
             dados = res.data
             
@@ -79,16 +77,13 @@ else:
                 df = pd.DataFrame(dados)
                 btn_col1.download_button("📥 Baixar Excel Completo", df.to_csv(index=False).encode('utf-8-sig'), "relatorio.csv", "text/csv", use_container_width=True)
                 
-                # BOTÃO PARA APAGAR TRATADOS
-                if btn_col2.button("🔥 Apagar Casos Tratados do Banco", type="secondary", use_container_width=True):
-                    try:
-                        # Deleta todos onde 'tratado' é True
+                # Botão com confirmação para apagar tratados
+                if btn_col2.button("🔥 Apagar Casos Tratados", type="secondary", use_container_width=True):
+                    with st.status("Limpando banco de dados..."):
                         supabase.table("registros_piedade").delete().eq("tratado", True).execute()
-                        st.toast("✅ Registros tratados foram excluídos permanentemente!")
+                        st.toast("✅ Registros tratados excluídos!")
                         time.sleep(1)
                         st.rerun()
-                    except Exception as e:
-                        st.error(f"Erro ao apagar: {e}")
 
                 st.divider()
 
@@ -157,7 +152,7 @@ else:
             if is_novo:
                 n_comp = st.text_input("Nome Completo:", key=f"comp_n_{f_id}")
                 d1, d2, d3 = st.columns(3)
-                n_id = d1.number_input("Idade:", min_value=0, key=f"id_n_{f_id}")
+                n_id = d1.number_input("Idade Assistido (Obrigatório):", min_value=0, key=f"id_n_{f_id}")
                 n_bat = d2.text_input("Tempo de Batismo:", key=f"bat_n_{f_id}")
                 n_civ = d3.selectbox("Estado Civil:", ["Solteiro(a)", "Casado(a)", "Viúvo(a)", "Desquitado(a)"], key=f"civ_n_{f_id}")
                 
@@ -166,17 +161,30 @@ else:
                         st.write("💍 **Dados do Cônjuge**")
                         n_conj = st.text_input("Nome do Cônjuge:", key=f"conj_n_{f_id}")
                         cc1, cc2 = st.columns(2)
-                        n_conj_id = cc1.number_input("Idade Cônjuge:", min_value=0, key=f"conj_id_n_{f_id}")
+                        n_conj_id = cc1.number_input("Idade Cônjuge (Obrigatório):", min_value=0, key=f"conj_id_n_{f_id}")
                         n_conj_bat = cc2.text_input("Tempo de Batismo Cônjuge:", key=f"conj_bat_n_{f_id}")
                 
                 n_end = st.text_input("Rua e Número:", key=f"end_n_{f_id}")
                 b1, b2 = st.columns(2)
                 n_bai = b1.text_input("Bairro:", key=f"bai_n_{f_id}")
-                n_cep = b2.text_input("CEP:", key=f"cep_n_{f_id}")
+                n_cep = b2.text_input("CEP (Obrigatório):", key=f"cep_n_{f_id}")
 
             if st.button("💾 FINALIZAR E ENVIAR", type="primary", use_container_width=True):
-                if not nome_sol: st.error("Informe o Nome!"); st.stop()
-                if not is_novo and not n_prontuario: st.error("Nº Prontuário obrigatório!"); st.stop()
+                # --- VALIDAÇÕES OBRIGATÓRIAS ---
+                if not nome_sol: 
+                    st.error("❌ Por favor, informe o Nome do Solicitante!"); st.stop()
+                
+                if not is_novo and not n_prontuario: 
+                    st.error("❌ O Número do Prontuário é obrigatório para cadastros existentes!"); st.stop()
+
+                if is_novo:
+                    # Trava para Idade e CEP no cadastro novo
+                    if n_id == 0:
+                        st.error("❌ A idade do assistido deve ser maior que zero!"); st.stop()
+                    if not n_cep or len(n_cep) < 8:
+                        st.error("❌ Por favor, informe um CEP válido!"); st.stop()
+                    if n_civ == "Casado(a)" and n_conj_id == 0:
+                        st.error("❌ A idade do cônjuge deve ser informada!"); st.stop()
 
                 payload = {
                     "tipo_solicitante": tipo_sol, "nome_solicitante": nome_sol, "num_prontuario": n_prontuario,
@@ -189,9 +197,9 @@ else:
                 try:
                     supabase.table("registros_piedade").insert(payload).execute()
                     st.balloons()
-                    st.success("Dados salvos")
-                    time.sleep(1)
+                    st.success("✅ Dados salvos com sucesso!")
+                    time.sleep(1.5)
                     resetar_tela()
                     st.rerun() 
                 except Exception as e:
-                    st.error(f"Erro ao salvar: {e}")
+                    st.error(f"Erro ao salvar no banco: {e}")
