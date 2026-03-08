@@ -87,13 +87,12 @@ else:
         if not liberado:
             st.error(f"⚠️ Sistema Bloqueado. Liberação: {data_lib.strftime('%d/%m/%Y')}")
         else:
-            # Para o formulário abrir dinamicamente, usamos a lógica fora do st.form para os inputs de controle
             with st.container(border=True):
                 st.subheader("1. Identificação")
                 tipo_sol = st.radio("Solicitante:", ["Diácono", "Irmã da Piedade"], horizontal=True)
                 nome_sol = st.text_input("Nome do Solicitante (Obrigatório):")
                 
-                # Layout solicitado: Prontuário ao lado e ANTES da Quantidade
+                # Layout: Prontuário à esquerda (antes) e Cestas à direita
                 col_p1, col_p2 = st.columns([2, 1])
                 n_prontuario = col_p1.text_input("Número do Prontuário (Obrigatório se NÃO for Novo):")
                 q_cestas = col_p2.number_input("Qtd. Cestas:", min_value=1, step=1)
@@ -103,7 +102,7 @@ else:
                 st.divider()
                 is_novo = st.toggle("🆕 ESTE É UM CADASTRO NOVO?")
 
-                # Variáveis padrão
+                # Variáveis padrão para o banco
                 n_comp, n_id, n_bat, n_civ, n_conj, n_end, n_bai, n_cep = "", 0, "", "Solteiro(a)", "", "", "", ""
 
                 if is_novo:
@@ -128,7 +127,7 @@ else:
                     if not is_novo and not n_prontuario: st.error("O Número do Prontuário é obrigatório para cadastros existentes."); erro = True
                     if is_novo:
                         if not n_comp or n_id == 0 or not n_end or not n_bai or not n_cep:
-                            st.error("Preencha todos os campos obrigatórios do novo cadastro (Nome, Idade e Endereço)."); erro = True
+                            st.error("Preencha todos os campos obrigatórios do novo cadastro."); erro = True
                         if n_civ == "Casado(a)" and not n_conj:
                             st.error("Nome do cônjuge obrigatório."); erro = True
 
@@ -140,6 +139,9 @@ else:
                             "idade": int(n_id), "tempo_batismo": n_bat, "estado_civil": n_civ, "nome_conjuge": n_conj,
                             "endereco": n_end, "bairro": n_bai, "cep": n_cep, "data_sistema": data_atual, "tratado": False
                         }
-                        supabase.table("registros_piedade").insert(payload).execute()
-                        st.success(f"✅ Salvo com sucesso! ({data_atual})")
-                        st.rerun()
+                        try:
+                            supabase.table("registros_piedade").insert(payload).execute()
+                            st.success("Dados salvos") # Mensagem solicitada
+                            st.rerun()
+                        except Exception as e:
+                            st.error(f"Erro ao salvar: {e}")
