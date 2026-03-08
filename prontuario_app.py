@@ -66,7 +66,7 @@ else:
 
     # --- VISÃO DO DIÁCONO ---
     if st.session_state.cargo == "Diácono":
-        st.title("📋 Gestão de Pedidos")
+        st.title("📋 Reserva de Cestas")
         tab_novos, tab_existentes, tab_tratados = st.tabs(["🆕 Novos", "📋 Prontuários", "✅ Tratados"])
         
         try:
