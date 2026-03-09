@@ -114,34 +114,31 @@ else:
                         with st.container(border=True):
                             st.markdown(f"<div class='nome-header'>👤 {item['nome_completo']}</div>", unsafe_allow_html=True)
                             
-                            # Informações Pessoais
                             col1, col2, col3, col4 = st.columns(4)
-                            col1.markdown(f"<span class='label-info'>🎂 Idade</span><br><span class='value-info'>{int(item['idade'])} anos</span>", unsafe_allow_html=True)
-                            col2.markdown(f"<span class='label-info'>🌊 Batismo</span><br><span class='value-info'>{item['tempo_batismo'] or '---'}</span>", unsafe_allow_html=True)
-                            col3.markdown(f"<span class='label-info'>💍 Est. Civil</span><br><span class='value-info'>{item['estado_civil']}</span>", unsafe_allow_html=True)
-                            col4.markdown(f"<span class='label-info'>⛪ Comum</span><br><span class='value-info'>{item['comum_assistido']}</span>", unsafe_allow_html=True)
+                            col1.markdown(f"<span class='label-info'>🎂 Idade</span><br><span class='value-info'>{int(item.get('idade', 0))} anos</span>", unsafe_allow_html=True)
+                            col2.markdown(f"<span class='label-info'>🌊 Batismo</span><br><span class='value-info'>{item.get('tempo_batismo') or '---'}</span>", unsafe_allow_html=True)
+                            col3.markdown(f"<span class='label-info'>💍 Est. Civil</span><br><span class='value-info'>{item.get('estado_civil') or '---'}</span>", unsafe_allow_html=True)
+                            col4.markdown(f"<span class='label-info'>⛪ Comum</span><br><span class='value-info'>{item.get('comum_assistido') or '---'}</span>", unsafe_allow_html=True)
                             
-                            # Dados do Cônjuge
-                            if item['estado_civil'] == "Casado(a)":
+                            if item.get('estado_civil') == "Casado(a)":
                                 st.markdown("<div class='section-divider'>👩‍❤️‍👨 Dados do Cônjuge</div>", unsafe_allow_html=True)
                                 cj1, cj2, cj3 = st.columns([2, 1, 1])
-                                cj1.markdown(f"<span class='label-info'>Nome</span><br><span class='value-info'>{item['nome_conjuge']}</span>", unsafe_allow_html=True)
-                                cj2.markdown(f"<span class='label-info'>Idade</span><br><span class='value-info'>{int(item['idade_conjuge'])} anos</span>", unsafe_allow_html=True)
-                                cj3.markdown(f"<span class='label-info'>Batismo</span><br><span class='value-info'>{item['batismo_conjuge'] or '---'}</span>", unsafe_allow_html=True)
+                                cj1.markdown(f"<span class='label-info'>Nome</span><br><span class='value-info'>{item.get('nome_conjuge') or '---'}</span>", unsafe_allow_html=True)
+                                cj2.markdown(f"<span class='label-info'>Idade</span><br><span class='value-info'>{int(item.get('idade_conjuge', 0))} anos</span>", unsafe_allow_html=True)
+                                cj3.markdown(f"<span class='label-info'>Batismo</span><br><span class='value-info'>{item.get('batismo_conjuge') or '---'}</span>", unsafe_allow_html=True)
 
-                            # Endereço e Logística
                             st.markdown("<div class='section-divider'>📍 Localização e Pedido</div>", unsafe_allow_html=True)
-                            end1, end2, end3 = st.columns([2, 1, 1])
-                            end1.markdown(f"<span class='label-info'>Endereço Completo</span><br><span class='value-info'>{item['endereco']}</span>", unsafe_allow_html=True)
-                            end2.markdown(f"<span class='label-info'>Bairro / CEP</span><br><span class='value-info'>{item['bairro']} | {item['cep']}</span>", unsafe_allow_html=True)
-                            end3.markdown(f"<span class='label-info'>📦 Qtd / Retirada</span><br><span class='value-info'>{int(item['quantidade_cestas'])} un / {item['local_retirada']}</span>", unsafe_allow_html=True)
+                            end1, end2, end3, end4 = st.columns([2, 1, 1, 1])
+                            end1.markdown(f"<span class='label-info'>Endereço</span><br><span class='value-info'>{item.get('endereco') or '---'}</span>", unsafe_allow_html=True)
+                            end2.markdown(f"<span class='label-info'>Bairro</span><br><span class='value-info'>{item.get('bairro') or '---'}</span>", unsafe_allow_html=True)
+                            end3.markdown(f"<span class='label-info'>CEP</span><br><span class='value-info'>{item.get('cep') or '---'}</span>", unsafe_allow_html=True)
+                            end4.markdown(f"<span class='label-info'>📦 Qtd / Retirada</span><br><span class='value-info'>{int(item.get('quantidade_cestas', 0))} un / {item.get('local_retirada')}</span>", unsafe_allow_html=True)
                             
-                            # Dados do Solicitante (Irmã/Diácono que cadastrou)
                             st.markdown("<div class='section-divider'>📝 Dados do Cadastro</div>", unsafe_allow_html=True)
                             sol1, sol2, sol3 = st.columns(3)
-                            sol1.markdown(f"<span class='label-info'>Solicitante</span><br><span class='value-info'>{item['nome_solicitante']}</span>", unsafe_allow_html=True)
-                            sol2.markdown(f"<span class='label-info'>Cargo / Comum</span><br><span class='value-info'>{item['tipo_solicitante']} - {item['comum_solicitante']}</span>", unsafe_allow_html=True)
-                            sol3.markdown(f"<span class='label-info'>Data da Reserva</span><br><span class='value-info'>{item['data_sistema']}</span>", unsafe_allow_html=True)
+                            sol1.markdown(f"<span class='label-info'>Solicitante</span><br><span class='value-info'>{item.get('nome_solicitante')}</span>", unsafe_allow_html=True)
+                            sol2.markdown(f"<span class='label-info'>Cargo / Comum</span><br><span class='value-info'>{item.get('tipo_solicitante')} - {item.get('comum_solicitante')}</span>", unsafe_allow_html=True)
+                            sol3.markdown(f"<span class='label-info'>Data da Reserva</span><br><span class='value-info'>{item.get('data_sistema')}</span>", unsafe_allow_html=True)
 
                             if st.button("Concluir Lançamento", key=f"ln_{item['id']}", type="primary", use_container_width=True):
                                 supabase.table("registros_piedade").update({"tratado": True}).eq("id", item['id']).execute(); st.rerun()
@@ -214,7 +211,6 @@ else:
             if not n_sol or not c_sol: st.error("Identifique-se!"); st.stop()
             data_agora = datetime.now().strftime('%d/%m/%Y %H:%M')
             try:
-                # Trava de Duplicidade
                 for it in st.session_state.lista_prontuarios:
                     check = supabase.table("registros_piedade").select("id").eq("num_prontuario", str(it['pront'])).eq("tratado", False).execute()
                     if check.data: st.error(f"🚨 Prontuário {it['pront']} já pendente!"); st.stop()
