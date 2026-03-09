@@ -86,7 +86,7 @@ else:
 
     # --- VISÃO: LANÇADOS (DIÁCONOS) ---
     if st.session_state.cargo == "Lançados":
-        st.title("📋 Painel de Controle")
+        st.title("📋 Reserva de Cesta Básica")
         
         try:
             res = supabase.table("registros_piedade").select("*").order("data_sistema", desc=True).execute()
@@ -170,7 +170,7 @@ else:
 
     # --- VISÃO: RESERVA (IRMÃS/DIÁCONOS) ---
     else:
-        st.title("📝 Reserva de Cestas")
+        st.title("📝 Solicitação de Cesta Básica")
         f_key, p_key = st.session_state.form_key, st.session_state.p_key
         
         with st.container(border=True):
@@ -187,7 +187,7 @@ else:
         with st.expander("Adicionar Prontuário à Lista", expanded=True):
             cp1, cp2, cp3 = st.columns([2, 1, 1])
             num_p = cp1.text_input("Número do Prontuário", key=f"np_{p_key}")
-            qtd_p = cp2.number_input("Qtd", min_value=1, value=1, key=f"qp_{p_key}")
+            qtd_p = cp2.number_input("Qtd de Cesta", min_value=1, value=1, key=f"qp_{p_key}")
             if cp3.button("➕ Adicionar"):
                 if num_p:
                     if any(x['pront'] == num_p for x in st.session_state.lista_prontuarios):
