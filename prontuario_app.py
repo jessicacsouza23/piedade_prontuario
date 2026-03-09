@@ -15,6 +15,10 @@ st.markdown("""
     .bloqueio-msg { background-color: #fff2f2; border: 1px solid #ff4b4b; padding: 20px; border-radius: 10px; color: #b91c1c; text-align: center; }
     .prontuario-item { background-color: #f8f9fa; padding: 10px; border-radius: 5px; border-left: 5px solid #007bff; margin-bottom: 5px; display: flex; justify-content: space-between; align-items: center; }
     .badge-comum { background-color: #fff3e0; color: #ef6c00; padding: 2px 8px; border-radius: 4px; font-size: 0.8rem; font-weight: bold; border: 1px solid #ffe0b2; }
+    /* Estilo para os Cards de Resumo */
+    .metric-card { background-color: #f0f2f6; padding: 15px; border-radius: 10px; text-align: center; border: 1px solid #dcdfe3; }
+    .metric-value { font-size: 1.8rem; font-weight: bold; color: #007bff; }
+    .metric-label { font-size: 0.9rem; color: #555; text-transform: uppercase; letter-spacing: 1px; }
     </style>
     """, unsafe_allow_html=True)
 
@@ -75,12 +79,29 @@ else:
 
     # --- VISÃO: LANÇADOS ---
     if st.session_state.cargo == "Lançados":
-        st.title("📋 Gestão de Pedidos")
-        tab_pront, tab_novos, tab_tratados = st.tabs(["📋 Prontuários", "🆕 Novos Cadastros", "✅ Tratados"])
+        st.title("📋 Reserva de Cesta Básica")
         
         try:
             res = supabase.table("registros_piedade").select("*").order("data_sistema", desc=True).execute()
             dados = res.data
+            
+            # --- CÁLCULO DE MÉTRICAS ---
+            pendentes = [x for x in dados if not x.get('tratado')]
+            pronts_pendentes = [x for x in pendentes if not x.get('nome_completo')]
+            novos_pendentes = [x for x in pendentes if x.get('nome_completo')]
+            
+            total_cestas = sum(int(x.get('quantidade_cestas') or 0) for x in pendentes)
+            
+            # --- PAINEL DE RESUMO ---
+            m1, m2, m3, m4 = st.columns(4)
+            with m1: st.markdown(f"<div class='metric-card'><div class='metric-label'>📦 Total Cestas</div><div class='metric-value'>{total_cestas}</div></div>", unsafe_allow_html=True)
+            with m2: st.markdown(f"<div class='metric-card'><div class='metric-label'>📋 Prontuários</div><div class='metric-value'>{len(pronts_pendentes)}</div></div>", unsafe_allow_html=True)
+            with m3: st.markdown(f"<div class='metric-card'><div class='metric-label'>🆕 Casos Novos</div><div class='metric-value'>{len(novos_pendentes)}</div></div>", unsafe_allow_html=True)
+            with m4: st.markdown(f"<div class='metric-card'><div class='metric-label'>📉 Total Casos</div><div class='metric-value'>{len(pendentes)}</div></div>", unsafe_allow_html=True)
+            
+            st.divider()
+
+            tab_pront, tab_novos, tab_tratados = st.tabs(["📋 Prontuários", "🆕 Novos Cadastros", "✅ Tratados"])
             
             def render_card(item):
                 with st.container(border=True):
@@ -117,11 +138,11 @@ else:
                                     st.write(f"**Batismo Cônjuge:** {item.get('batismo_conjuge')}")
 
             with tab_pront:
-                pronts = [x for x in dados if not x.get('nome_completo') and not x.get('tratado')]
-                for p in pronts: render_card(p)
+                if not pronts_pendentes: st.info("Nenhum prontuário pendente.")
+                for p in pronts_pendentes: render_card(p)
             with tab_novos:
-                novos = [x for x in dados if x.get('nome_completo') and not x.get('tratado')]
-                for n in novos: render_card(n)
+                if not novos_pendentes: st.info("Nenhum cadastro novo pendente.")
+                for n in novos_pendentes: render_card(n)
             with tab_tratados:
                 tratados = [x for x in dados if x.get('tratado')]
                 if tratados and st.button("🚨 LIMPAR HISTÓRICO"):
@@ -133,7 +154,7 @@ else:
 
     # --- VISÃO: RESERVA ---
     else:
-        st.title("📝 Nova Reserva de Cestas")
+        st.title("📝 Solicitação de Cesta Básica")
         f_key = st.session_state.form_key
         p_key = st.session_state.p_key
         
@@ -193,14 +214,10 @@ else:
         loc_ret = st.radio("Local de Retirada:", ["Pq. Guarani", "Itaquera"], horizontal=True, key=f"loc_{f_key}")
 
         if st.button("💾 SALVAR TUDO", type="primary", use_container_width=True):
-            if not n_sol or not c_sol: st.error("Identifique-se primeiro!"); st.stop()
-            
-            # Validação condicional: Só trava se 'is_novo' estiver ligado
+            if not n_sol or not c_sol: st.error("Identifique-se!"); st.stop()
             if is_novo:
-                if not n_comp or n_id <= 0: st.error("Para novo cadastro, nome e idade são obrigatórios!"); st.stop()
+                if not n_comp or n_id <= 0: st.error("Dados do assistido obrigatórios!"); st.stop()
                 if n_civ == "Casado(a)" and (not n_conj or n_conj_id <= 0): st.error("Dados do cônjuge obrigatórios!"); st.stop()
-            elif not st.session_state.lista_prontuarios:
-                st.warning("Adicione prontuários ou ative 'Novo Cadastro'."); st.stop()
 
             data_atual = datetime.now().strftime('%d/%m/%Y %H:%M')
             try:
@@ -210,5 +227,5 @@ else:
                     supabase.table("registros_piedade").insert({"tipo_solicitante": t_sol, "nome_solicitante": n_sol, "comum_solicitante": c_sol, "comum_assistido": c_ast, "nome_completo": n_comp, "quantidade_cestas": int(q_novo), "idade": int(n_id), "tempo_batismo": n_bat, "estado_civil": n_civ, "nome_conjuge": n_conj, "idade_conjuge": int(n_conj_id), "batismo_conjuge": n_conj_bat, "endereco": n_end, "bairro": n_bai, "cep": n_cep, "local_retirada": loc_ret, "data_sistema": data_atual, "tratado": False}).execute()
                 
                 st.balloons()
-                st.success("✅ GRAVADO COM SUCESSO!"); time.sleep(1.5); resetar_formulario(); st.rerun()
+                st.success("✅ GRAVADO!"); time.sleep(1.5); resetar_formulario(); st.rerun()
             except Exception as e: st.error(f"Erro: {e}")
