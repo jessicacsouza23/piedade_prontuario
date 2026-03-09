@@ -48,7 +48,7 @@ def resetar_formulario():
 
 # --- LOGIN ---
 if not st.session_state.autenticado:
-    st.title("⛪ Sistema Piedade")
+    st.title("⛪ Reserva de Cesta")
     with st.container(border=True):
         cargo_sel = st.selectbox("Acesso:", ["Lançados", "Reserva de Cesta Básica"])
         senha = st.text_input("Senha:", type="password")
@@ -68,7 +68,7 @@ else:
     # --- VISÃO: LANÇADOS ---
     if st.session_state.cargo == "Lançados":
         col_tit, col_sync = st.columns([4, 1])
-        col_tit.title("📋 Painel de Controle")
+        col_tit.title("📋 Reserva Cesta Básica")
         if col_sync.button("🔄 Sincronizar", use_container_width=True):
             st.toast("Atualizando dados...")
             time.sleep(0.5)
@@ -84,11 +84,11 @@ else:
                 pronts_pend_df = pendentes_df[pendentes_df['nome_completo'].isna() | (pendentes_df['nome_completo'] == "")]
                 novos_pend_df = pendentes_df[pendentes_df['nome_completo'].notna() & (pendentes_df['nome_completo'] != "")]
 
-                st.markdown("##### 📊 Controle de Casos")
-                c_casos, c_pront, c_novos = st.columns(3)
-                c_casos.markdown(f"<div class='metric-container'><div class='metric-label'>📝 Total de Casos</div><div class='metric-value'>{len(pendentes_df)}</div></div>", unsafe_allow_html=True)
+                st.markdown("##### 📊 Controle de Prontuários")
+                c_Reserva, c_pront, c_novos = st.columns(3)
+                c_Reserva.markdown(f"<div class='metric-container'><div class='metric-label'>📝 Solicitação Total</div><div class='metric-value'>{len(pendentes_df)}</div></div>", unsafe_allow_html=True)
                 c_pront.markdown(f"<div class='metric-container'><div class='metric-label'>📋 Prontuários</div><div class='metric-value'>{len(pronts_pend_df)}</div></div>", unsafe_allow_html=True)
-                c_novos.markdown(f"<div class='metric-container'><div class='metric-label'>🆕 Novos Casos</div><div class='metric-value'>{len(novos_pend_df)}</div></div>", unsafe_allow_html=True)
+                c_novos.markdown(f"<div class='metric-container'><div class='metric-label'>🆕 Novos Prontuários</div><div class='metric-value'>{len(novos_pend_df)}</div></div>", unsafe_allow_html=True)
 
                 st.markdown("##### 📦 Logística de Cestas")
                 m_total, m_ita, m_gua = st.columns(3)
@@ -113,10 +113,10 @@ else:
                         map_n = {'data_sistema': 'Data Pedido', 'local_retirada': 'Local Retirada', 'tipo_solicitante': 'Cargo Solicitante', 'nome_solicitante': 'Solicitante', 'comum_solicitante': 'Comum Solicitante', 'nome_completo': 'Nome Assistido', 'quantidade_cestas': 'Qtd Cestas', 'idade': 'Idade', 'estado_civil': 'Estado Civil', 'comum_assistido': 'Comum Assistido', 'tempo_batismo': 'Tempo Batismo', 'nome_conjuge': 'Nome Cônjuge', 'idade_conjuge': 'Idade Cônjuge', 'batismo_conjuge': 'Batismo Cônjuge', 'endereco': 'Endereço', 'bairro': 'Bairro', 'cep': 'CEP'}
                         cols_existentes = [c for c in map_n.keys() if c in novos_pend_df.columns]
                         csv_n = novos_pend_df[cols_existentes].rename(columns=map_n).to_csv(index=False, sep=';', encoding='utf-8-sig').encode('utf-8-sig')
-                        st.download_button("📥 EXCEL: CASOS NOVOS", csv_n, f"casos_novos_{datetime.now().strftime('%d_%m')}.csv", "text/csv", type="primary")
+                        st.download_button("📥 EXCEL: Reserva NOVOS", csv_n, f"Reserva_novos_{datetime.now().strftime('%d_%m')}.csv", "text/csv", type="primary")
 
                 st.divider()
-                tab_p, tab_n, tab_t = st.tabs(["📋 Prontuários", "🆕 Novos Casos", "✅ Histórico"])
+                tab_p, tab_n, tab_t = st.tabs(["📋 Prontuários", "🆕 Novos Reserva", "✅ Histórico"])
 
                 with tab_p:
                     for _, item in pronts_pend_df.iterrows():
@@ -175,15 +175,15 @@ else:
             st.markdown("#### 👤 Identificação do Solicitante")
             c1, c2, c3 = st.columns([1.5, 1.5, 1.5])
             t_sol = c1.radio("Cargo:", ["Diácono", "Irmã da Piedade"], horizontal=True, key=f"ts_{f_key}")
-            n_sol = c2.text_input("Seu Nome:", key=f"ns_{f_key}")
+            n_sol = c2.text_input("Nome do Solicitante:", key=f"ns_{f_key}")
             c_sol = c3.text_input("Sua Comum:", key=f"cs_{f_key}")
 
         st.divider()
-        st.markdown("#### 📋 Prontuários Existentes")
+        st.markdown("#### 📋 Nº de Prontuários")
         with st.expander("Adicionar Prontuário", expanded=True):
             cp1, cp2, cp3 = st.columns([2, 1, 1])
             num_p = cp1.text_input("Número do Prontuário", key=f"np_{p_key}")
-            qtd_p = cp2.number_input("Qtd", min_value=1, value=1, key=f"qp_{p_key}")
+            qtd_p = cp2.number_input("Qtd de cesta", min_value=1, value=1, key=f"qp_{p_key}")
             if cp3.button("➕ Adicionar"):
                 if num_p:
                     if any(x['pront'] == num_p for x in st.session_state.lista_prontuarios): st.error("Já está na lista abaixo.")
@@ -202,7 +202,7 @@ else:
         if is_novo:
             with st.container(border=True):
                 n_comp = st.text_input("Nome Completo *:", key=f"nc_{f_key}")
-                c_ast = st.text_input("Comum do Assistido:", key=f"ca_{f_key}")
+                c_ast = st.text_input("Comum do Atendido:", key=f"ca_{f_key}")
                 d1, d2, d3 = st.columns(3)
                 n_id = d1.number_input("Idade *:", min_value=0, key=f"id_{f_key}")
                 n_bat = d2.text_input("Tempo de Batismo:", key=f"ba_{f_key}")
