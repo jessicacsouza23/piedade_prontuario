@@ -15,11 +15,11 @@ st.markdown("""
     .metric-label { font-size: 0.85rem; font-weight: 600; color: #6B7280; text-transform: uppercase; letter-spacing: 0.5px; }
     .stTabs [data-baseweb="tab-list"] { gap: 10px; }
     .stTabs [aria-selected="true"] { background-color: #1E3A8A !important; color: white !important; border-radius: 8px; }
-    .badge-comum { background-color: #DBEAFE; color: #1E40AF; padding: 3px 10px; border-radius: 20px; font-size: 0.75rem; font-weight: bold; }
     .nome-header { font-size: 1.2rem; font-weight: 700; color: #111827; }
-    .info-box { background-color: #f9fafb; padding: 15px; border-radius: 8px; border: 1px solid #edf2f7; margin-top: 10px; }
     .label-info { color: #4b5563; font-weight: 600; font-size: 0.9rem; }
     .value-info { color: #1f2937; font-weight: 400; font-size: 0.95rem; }
+    /* Estilo dos botões de download */
+    .stDownloadButton button { width: 100% !important; border-radius: 8px !important; }
     </style>
     """, unsafe_allow_html=True)
 
@@ -83,42 +83,29 @@ else:
             m3.markdown(f"<div class='metric-container'><div class='metric-label'>🆕 Novos Casos</div><div class='metric-value'>{len(novos_pend)}</div></div>", unsafe_allow_html=True)
             m4.markdown(f"<div class='metric-container'><div class='metric-label'>📊 Total Casos</div><div class='metric-value'>{len(pendentes)}</div></div>", unsafe_allow_html=True)
 
+            # --- SEÇÃO DE EXPORTAÇÃO SEPARADA ---
             st.write("")
-            if pendentes:
-                df_export = pd.DataFrame(pendentes)
-                
-                # --- DICIONÁRIO COMPLETO PARA O EXCEL ---
-                # Inclui TODOS os campos para os Diáconos, com nomes amigáveis
-                colunas_mapeamento = {
-                    'num_prontuario': 'Prontuário',
-                    'nome_completo': 'Nome do Assistido',
-                    'quantidade_cestas': 'Qtd Cestas',
-                    'local_retirada': 'Local Retirada',
-                    'comum_assistido': 'Comum Assistido',
-                    'idade': 'Idade',
-                    'estado_civil': 'Estado Civil',
-                    'tempo_batismo': 'Tempo de Batismo',
-                    'nome_conjuge': 'Nome Cônjuge',
-                    'idade_conjuge': 'Idade Cônjuge',
-                    'batismo_conjuge': 'Batismo Cônjuge',
-                    'endereco': 'Endereço',
-                    'bairro': 'Bairro',
-                    'cep': 'CEP',
-                    'nome_solicitante': 'Solicitado Por',
-                    'comum_solicitante': 'Comum do Solicitante',
-                    'data_sistema': 'Data do Pedido'
-                }
-                
-                # Filtrar apenas as colunas que existem e renomear
-                cols_finais = [c for c in colunas_mapeamento.keys() if c in df_export.columns]
-                df_final = df_export[cols_finais].copy()
-                df_final.rename(columns=colunas_mapeamento, inplace=True)
-                
-                # Ordenação sugerida: Por Local de Retirada e depois por Nome
-                df_final.sort_values(by=['Local Retirada', 'Nome do Assistido', 'Prontuário'], inplace=True)
-                
-                csv = df_final.to_csv(index=False, sep=';', encoding='utf-8-sig').encode('utf-8-sig')
-                st.download_button("📥 BAIXAR PLANILHA COMPLETA (CSV/EXCEL)", csv, f"piedade_completo_{datetime.now().strftime('%d_%m')}.csv", "text/csv", use_container_width=True, type="primary")
+            exp1, exp2 = st.columns(2)
+            
+            with exp1:
+                if pronts_pend:
+                    df_p = pd.DataFrame(pronts_pend)
+                    map_p = {'num_prontuario': 'Prontuário', 'quantidade_cestas': 'Qtd', 'local_retirada': 'Local', 'tipo_solicitante': 'Cargo Solicit.', 'nome_solicitante': 'Nome Solicit.', 'data_sistema': 'Data'}
+                    df_p_f = df_p[[c for c in map_p.keys() if c in df_p.columns]].rename(columns=map_p)
+                    csv_p = df_p_f.to_csv(index=False, sep=';', encoding='utf-8-sig').encode('utf-8-sig')
+                    st.download_button("📥 EXCEL: LISTA PRONTUÁRIOS", csv_p, f"prontuarios_{datetime.now().strftime('%d_%m')}.csv", "text/csv", type="primary")
+
+            with exp2:
+                if novos_pend:
+                    df_n = pd.DataFrame(novos_pend)
+                    map_n = {
+                        'nome_completo': 'Nome Assistido', 'quantidade_cestas': 'Qtd', 'local_retirada': 'Local', 'comum_assistido': 'Comum Assistido',
+                        'idade': 'Idade', 'estado_civil': 'Est. Civil', 'tempo_batismo': 'Batismo', 'nome_conjuge': 'Cônjuge', 'endereco': 'Endereço', 
+                        'bairro': 'Bairro', 'tipo_solicitante': 'Cargo Solicit.', 'nome_solicitante': 'Nome Solicit.', 'data_sistema': 'Data'
+                    }
+                    df_n_f = df_n[[c for c in map_n.keys() if c in df_n.columns]].rename(columns=map_n)
+                    csv_n = df_n_f.to_csv(index=False, sep=';', encoding='utf-8-sig').encode('utf-8-sig')
+                    st.download_button("📥 EXCEL: CASOS NOVOS (Ficha Completa)", csv_n, f"casos_novos_{datetime.now().strftime('%d_%m')}.csv", "text/csv", type="primary")
 
             st.divider()
             tab_p, tab_n, tab_t = st.tabs(["📋 Prontuários Pendentes", "🆕 Novos para Análise", "✅ Histórico Tratados"])
@@ -128,7 +115,7 @@ else:
                     with st.container(border=True):
                         c1, c2, c3 = st.columns([3, 2, 1])
                         c1.markdown(f"<div class='nome-header'>Prontuário: {item['num_prontuario']}</div>", unsafe_allow_html=True)
-                        c1.caption(f"📅 {item['data_sistema']} | Solicitado por: {item['nome_solicitante']} ({item['comum_solicitante']})")
+                        c1.caption(f"📅 {item['data_sistema']} | {item['tipo_solicitante']}: {item['nome_solicitante']}")
                         c2.markdown(f"**📦 {item['quantidade_cestas']} Cesta(s)** | 📍 {item['local_retirada']}")
                         if c3.button("Lançar", key=f"lp_{item['id']}", use_container_width=True):
                             supabase.table("registros_piedade").update({"tratado": True}).eq("id", item['id']).execute(); st.rerun()
@@ -157,8 +144,9 @@ else:
                             cc.markdown(f"<span class='label-info'>Batismo:</span> <span class='value-info'>{item.get('batismo_conjuge') or 'Não inf.'}</span>", unsafe_allow_html=True)
 
                         st.markdown(f"<div style='margin-top:5px;'><span class='label-info'>📍 Local Retirada:</span> <span class='value-info'>{item.get('local_retirada')}</span> | <span class='label-info'>🏠 Endereço:</span> <span class='value-info'>{item.get('endereco')}, {item.get('bairro')}</span></div>", unsafe_allow_html=True)
+                        st.caption(f"Solicitado por {item['tipo_solicitante']}: {item['nome_solicitante']}")
                         
-                        if st.button("Marcar como Lançado", key=f"ln_{item['id']}", type="primary"):
+                        if st.button("Marcar como Lançado", key=f"ln_{item['id']}", type="primary", use_container_width=True):
                             supabase.table("registros_piedade").update({"tratado": True}).eq("id", item['id']).execute(); st.rerun()
 
             with tab_t:
