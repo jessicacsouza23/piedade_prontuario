@@ -68,7 +68,7 @@ else:
     # --- VISÃO: LANÇADOS ---
     if st.session_state.cargo == "Lançados":
         col_tit, col_sync = st.columns([4, 1])
-        col_tit.title("📋 Painel de Controle")
+        col_tit.title("📋 Reserva de Cesta Básica")
         if col_sync.button("🔄 Sincronizar", use_container_width=True):
             st.toast("Buscando novos registros...")
             time.sleep(0.5)
@@ -92,11 +92,11 @@ else:
                 novos_pend_df = pendentes_df[pendentes_df['nome_completo'].notna() & (pendentes_df['nome_completo'] != "")].copy()
 
                 # --- MÉTRICAS ---
-                st.markdown("##### 📊 Resumo Logístico")
-                c_casos, c_pront, c_novos = st.columns(3)
-                c_casos.markdown(f"<div class='metric-container'><div class='metric-label'>📝 Total de Casos</div><div class='metric-value'>{len(pendentes_df)}</div></div>", unsafe_allow_html=True)
+                st.markdown("##### 📊 Resumo Geral")
+                c_Prontuários, c_pront, c_novos = st.columns(3)
+                c_Prontuários.markdown(f"<div class='metric-container'><div class='metric-label'>📝 Total de Prontuários</div><div class='metric-value'>{len(pendentes_df)}</div></div>", unsafe_allow_html=True)
                 c_pront.markdown(f"<div class='metric-container'><div class='metric-label'>📋 Prontuários</div><div class='metric-value'>{len(pronts_pend_df)}</div></div>", unsafe_allow_html=True)
-                c_novos.markdown(f"<div class='metric-container'><div class='metric-label'>🆕 Novos Casos</div><div class='metric-value'>{len(novos_pend_df)}</div></div>", unsafe_allow_html=True)
+                c_novos.markdown(f"<div class='metric-container'><div class='metric-label'>🆕 Novos Prontuários</div><div class='metric-value'>{len(novos_pend_df)}</div></div>", unsafe_allow_html=True)
 
                 m_total, m_ita, m_gua = st.columns(3)
                 m_total.markdown(f"<div class='metric-container'><div class='metric-label'>📦 Total Cestas</div><div class='metric-value'>{int(pendentes_df['quantidade_cestas'].sum())}</div></div>", unsafe_allow_html=True)
@@ -108,8 +108,8 @@ else:
                 exp1, exp2 = st.columns(2)
                 with exp1:
                     if not pronts_pend_df.empty:
-                        cols_p = ['data_sistema', 'nome_solicitante', 'tipo_solicitante', 'local_retirada', 'num_prontuario', 'quantidade_cestas', 'comum_solicitante']
-                        map_p = {'data_sistema': 'Data', 'nome_solicitante': 'Solicitante', 'tipo_solicitante': 'Cargo', 'local_retirada': 'Local Entrega', 'num_prontuario': 'Nº Prontuário', 'quantidade_cestas': 'Qtd Cestas', 'comum_solicitante': 'Comum Solicitante'}
+                        cols_p = ['data_sistema', 'nome_solicitante', 'tipo_solicitante', 'comum_solicitante','local_retirada', 'num_prontuario', 'quantidade_cestas']
+                        map_p = {'data_sistema': 'Data', 'nome_solicitante': 'Solicitante', 'tipo_solicitante': 'Cargo', 'comum_solicitante': 'Comum Solicitante', 'local_retirada': 'Local Entrega', 'num_prontuario': 'Nº Prontuário', 'quantidade_cestas': 'Qtd Cestas'}
                         df_p_exp = pronts_pend_df[cols_p].rename(columns=map_p)
                         csv_p = df_p_exp.to_csv(index=False, sep=';', encoding='utf-8-sig').encode('utf-8-sig')
                         st.download_button("📥 EXCEL: PRONTUÁRIOS", csv_p, f"prontuarios_{datetime.now().strftime('%d_%m')}.csv", "text/csv", type="primary")
@@ -119,10 +119,10 @@ else:
                         map_n = {'data_sistema': 'Data Pedido', 'nome_solicitante': 'Solicitante', 'tipo_solicitante': 'Cargo Solicitante', 'local_retirada': 'Local Entrega', 'nome_completo': 'Nome Assistido', 'idade': 'Idade', 'tempo_batismo': 'Tempo Batismo', 'estado_civil': 'Estado Civil', 'comum_assistido': 'Comum Assistido', 'endereco': 'Endereço', 'bairro': 'Bairro', 'cep': 'CEP', 'quantidade_cestas': 'Qtd Cestas', 'nome_conjuge': 'Nome Cônjuge', 'idade_conjuge': 'Idade Cônjuge', 'batismo_conjuge': 'Batismo Cônjuge', 'comum_solicitante': 'Comum Solicitante'}
                         df_n_exp = novos_pend_df[cols_n].rename(columns=map_n)
                         csv_n = df_n_exp.to_csv(index=False, sep=';', encoding='utf-8-sig').encode('utf-8-sig')
-                        st.download_button("📥 EXCEL: CASOS NOVOS", csv_n, f"casos_novos_{datetime.now().strftime('%d_%m')}.csv", "text/csv", type="primary")
+                        st.download_button("📥 EXCEL: Prontuários NOVOS", csv_n, f"Prontuários_novos_{datetime.now().strftime('%d_%m')}.csv", "text/csv", type="primary")
 
                 st.divider()
-                tab_p, tab_n, tab_t = st.tabs(["📋 Prontuários", "🆕 Novos Casos", "✅ Histórico"])
+                tab_p, tab_n, tab_t = st.tabs(["📋 Prontuários", "🆕 Novos Prontuários", "✅ Histórico"])
 
                 with tab_p:
                     for _, item in pronts_pend_df.iterrows():
@@ -186,8 +186,8 @@ else:
             st.markdown("#### 👤 Identificação do Solicitante")
             c1, c2, c3 = st.columns([1.5, 1.5, 1.5])
             t_sol = c1.radio("Cargo:", ["Diácono", "Irmã da Piedade"], horizontal=True, key=f"ts_{f_key}")
-            n_sol = c2.text_input("Seu Nome:", key=f"ns_{f_key}")
-            c_sol = c3.text_input("Sua Comum:", key=f"cs_{f_key}")
+            n_sol = c2.text_input("Nome do Solicitante:", key=f"ns_{f_key}")
+            c_sol = c3.text_input("Comum:", key=f"cs_{f_key}")
 
         st.divider()
         st.markdown("#### 📋 Prontuários Existentes")
