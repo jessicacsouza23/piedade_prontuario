@@ -86,8 +86,39 @@ else:
             st.write("")
             if pendentes:
                 df_export = pd.DataFrame(pendentes)
-                csv = df_export.to_csv(index=False, sep=';', encoding='utf-8-sig').encode('utf-8-sig')
-                st.download_button("📥 BAIXAR LISTA COMPLETA (CSV)", csv, f"piedade_{datetime.now().strftime('%d_%m')}.csv", "text/csv", use_container_width=True, type="primary")
+                
+                # --- DICIONÁRIO COMPLETO PARA O EXCEL ---
+                # Inclui TODOS os campos para os Diáconos, com nomes amigáveis
+                colunas_mapeamento = {
+                    'num_prontuario': 'Prontuário',
+                    'nome_completo': 'Nome do Assistido',
+                    'quantidade_cestas': 'Qtd Cestas',
+                    'local_retirada': 'Local Retirada',
+                    'comum_assistido': 'Comum Assistido',
+                    'idade': 'Idade',
+                    'estado_civil': 'Estado Civil',
+                    'tempo_batismo': 'Tempo de Batismo',
+                    'nome_conjuge': 'Nome Cônjuge',
+                    'idade_conjuge': 'Idade Cônjuge',
+                    'batismo_conjuge': 'Batismo Cônjuge',
+                    'endereco': 'Endereço',
+                    'bairro': 'Bairro',
+                    'cep': 'CEP',
+                    'nome_solicitante': 'Solicitado Por',
+                    'comum_solicitante': 'Comum do Solicitante',
+                    'data_sistema': 'Data do Pedido'
+                }
+                
+                # Filtrar apenas as colunas que existem e renomear
+                cols_finais = [c for c in colunas_mapeamento.keys() if c in df_export.columns]
+                df_final = df_export[cols_finais].copy()
+                df_final.rename(columns=colunas_mapeamento, inplace=True)
+                
+                # Ordenação sugerida: Por Local de Retirada e depois por Nome
+                df_final.sort_values(by=['Local Retirada', 'Nome do Assistido', 'Prontuário'], inplace=True)
+                
+                csv = df_final.to_csv(index=False, sep=';', encoding='utf-8-sig').encode('utf-8-sig')
+                st.download_button("📥 BAIXAR PLANILHA COMPLETA (CSV/EXCEL)", csv, f"piedade_completo_{datetime.now().strftime('%d_%m')}.csv", "text/csv", use_container_width=True, type="primary")
 
             st.divider()
             tab_p, tab_n, tab_t = st.tabs(["📋 Prontuários Pendentes", "🆕 Novos para Análise", "✅ Histórico Tratados"])
@@ -106,8 +137,6 @@ else:
                 for item in novos_pend:
                     with st.container(border=True):
                         st.markdown(f"<div class='nome-header'>👤 {item['nome_completo']}</div>", unsafe_allow_html=True)
-                        
-                        # Grid de Informações Detalhadas
                         col_a, col_b, col_c = st.columns(3)
                         with col_a:
                             st.markdown(f"<span class='label-info'>🎂 Idade:</span> <span class='value-info'>{item.get('idade')} anos</span>", unsafe_allow_html=True)
@@ -119,7 +148,6 @@ else:
                             st.markdown(f"<span class='label-info'>📦 Cestas:</span> <span class='value-info'>{item.get('quantidade_cestas')} un.</span>", unsafe_allow_html=True)
                             st.markdown(f"<span class='label-info'>📅 Data:</span> <span class='value-info'>{item.get('data_sistema')}</span>", unsafe_allow_html=True)
 
-                        # Seção Cônjuge (Se for Casado)
                         if item.get('estado_civil') == "Casado(a)":
                             st.markdown("""<div style='margin-top:10px; border-top:1px dashed #ddd; padding-top:10px;'>
                                 <span class='label-info'>👩‍❤️‍👨 Dados do Cônjuge:</span></div>""", unsafe_allow_html=True)
@@ -146,7 +174,6 @@ else:
     else:
         st.title("📝 Reserva de Cestas")
         f_key, p_key = st.session_state.form_key, st.session_state.p_key
-        
         with st.container(border=True):
             st.markdown("#### 👤 Identificação do Solicitante")
             c1, c2, c3 = st.columns([1, 1.5, 1.5])
