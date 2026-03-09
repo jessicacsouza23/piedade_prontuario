@@ -41,9 +41,11 @@ except:
 if 'autenticado' not in st.session_state: st.session_state.autenticado = False
 if 'lista_prontuarios' not in st.session_state: st.session_state.lista_prontuarios = []
 if 'form_key' not in st.session_state: st.session_state.form_key = 0
+if 'p_key' not in st.session_state: st.session_state.p_key = 0 # Chave para os campos de prontuário
 
 def resetar_formulario():
     st.session_state.form_key += 1
+    st.session_state.p_key += 1
     st.session_state.lista_prontuarios = []
     for key in list(st.session_state.keys()):
         if any(key.startswith(prefix) for prefix in ["f_", "n_", "c_", "ts_", "inv_"]):
@@ -73,7 +75,7 @@ else:
 
     # --- VISÃO: LANÇADOS ---
     if st.session_state.cargo == "Lançados":
-        st.title("📋 Reserva de Cesta Básica")
+        st.title("📋 Gestão de Pedidos")
         tab_pront, tab_novos, tab_tratados = st.tabs(["📋 Prontuários", "🆕 Novos Cadastros", "✅ Tratados"])
         
         try:
@@ -100,19 +102,6 @@ else:
                                 supabase.table("registros_piedade").update({"tratado": True}).eq("id", item['id']).execute()
                                 st.rerun()
                         else: st.write("✅ Lançado")
-                    
-                    if item.get('nome_completo'):
-                        with st.expander("🔍 FICHA COMPLETA"):
-                            d1, d2 = st.columns(2)
-                            with d1:
-                                st.write(f"**Idade:** {item.get('idade')} | **Batismo:** {item.get('tempo_batismo')}")
-                                st.write(f"**Endereço:** {item.get('endereco')} - {item.get('bairro')}")
-                                st.write(f"**CEP:** {item.get('cep') or 'Não informado'}")
-                            with d2:
-                                if item.get('nome_conjuge'):
-                                    st.write(f"**💍 Cônjuge:** {item.get('nome_conjuge')}")
-                                    st.write(f"**Idade Cônjuge:** {item.get('idade_conjuge')}")
-                                    st.write(f"**Batismo Cônjuge:** {item.get('batismo_conjuge')}")
 
             with tab_pront:
                 pronts = [x for x in dados if not x.get('nome_completo') and not x.get('tratado')]
@@ -131,8 +120,9 @@ else:
 
     # --- VISÃO: RESERVA ---
     else:
-        st.title("📝 Solicitação de Cesta Básica")
+        st.title("📝 Nova Reserva de Cestas")
         f_key = st.session_state.form_key
+        p_key = st.session_state.p_key
         
         with st.container(border=True):
             st.markdown("### 1. Identificação do Solicitante")
@@ -145,12 +135,14 @@ else:
         st.markdown("### 2. Prontuários Existentes")
         with st.expander("➕ Adicionar Prontuário", expanded=True):
             col_p1, col_p2, col_p3 = st.columns([2, 1, 1])
-            num_p = col_p1.text_input("Nº do Prontuário", key=f"np_{f_key}")
-            qtd_p = col_p2.number_input("Qtd Cestas", min_value=1, value=1, key=f"qp_{f_key}")
+            num_p = col_p1.text_input("Nº do Prontuário", key=f"np_{p_key}")
+            qtd_p = col_p2.number_input("Qtd Cestas", min_value=1, value=1, key=f"qp_{p_key}")
             if col_p3.button("Adicionar"):
                 if num_p:
                     st.session_state.lista_prontuarios.append({"id": time.time(), "pront": num_p, "qtd": qtd_p})
+                    st.session_state.p_key += 1 # Limpa apenas os campos de prontuário
                     st.rerun()
+                else: st.warning("Digite o número do prontuário.")
 
         for i, p in enumerate(st.session_state.lista_prontuarios):
             c_i, c_d = st.columns([9, 1])
@@ -176,7 +168,6 @@ else:
                 
                 if n_civ == "Casado(a)":
                     with st.container(border=True):
-                        st.markdown("⚠️ **Campos obrigatórios para Casados**")
                         nj1, nj2, nj3 = st.columns([2, 1, 1])
                         n_conj = nj1.text_input("Nome do Cônjuge *:", key=f"nco_{f_key}")
                         n_conj_id = nj2.number_input("Idade do Cônjuge *:", min_value=0, key=f"ico_{f_key}")
@@ -191,25 +182,17 @@ else:
 
         if st.button("💾 SALVAR TUDO", type="primary", use_container_width=True):
             if not n_sol or not c_sol: st.error("Preencha seu nome e congregação!"); st.stop()
-            
-            # Validação para Novo Cadastro
             if is_novo:
-                if not n_comp or n_id <= 0:
-                    st.error("Nome completo e idade do assistido são obrigatórios!"); st.stop()
-                if n_civ == "Casado(a)":
-                    if not n_conj or n_conj_id <= 0:
-                        st.error("Para casados, o nome e idade do cônjuge são obrigatórios!"); st.stop()
+                if not n_comp or n_id <= 0: st.error("Nome e idade do assistido são obrigatórios!"); st.stop()
+                if n_civ == "Casado(a)" and (not n_conj or n_conj_id <= 0): st.error("Dados do cônjuge são obrigatórios!"); st.stop()
 
             data_atual = datetime.now().strftime('%d/%m/%Y %H:%M')
             try:
-                # Salva prontuários da lista
                 for item in st.session_state.lista_prontuarios:
                     supabase.table("registros_piedade").insert({"tipo_solicitante": t_sol, "nome_solicitante": n_sol, "comum_solicitante": c_sol, "num_prontuario": str(item['pront']), "quantidade_cestas": int(item['qtd']), "local_retirada": loc_ret, "data_sistema": data_atual, "tratado": False}).execute()
-                
-                # Salva novo cadastro
                 if is_novo:
                     supabase.table("registros_piedade").insert({"tipo_solicitante": t_sol, "nome_solicitante": n_sol, "comum_solicitante": c_sol, "comum_assistido": c_ast, "nome_completo": n_comp, "quantidade_cestas": int(q_novo), "idade": int(n_id), "tempo_batismo": n_bat, "estado_civil": n_civ, "nome_conjuge": n_conj, "idade_conjuge": int(n_conj_id), "batismo_conjuge": n_conj_bat, "endereco": n_end, "bairro": n_bai, "cep": n_cep, "local_retirada": loc_ret, "data_sistema": data_atual, "tratado": False}).execute()
                 
                 st.balloons()
-                st.success("✅ RESERVAS GRAVADAS COM SUCESSO!"); time.sleep(1.5); resetar_formulario(); st.rerun()
+                st.success("✅ RESERVAS GRAVADAS!"); time.sleep(1.5); resetar_formulario(); st.rerun()
             except Exception as e: st.error(f"Erro: {e}")
