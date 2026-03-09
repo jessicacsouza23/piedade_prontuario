@@ -68,7 +68,7 @@ else:
     # --- VISÃO: LANÇADOS ---
     if st.session_state.cargo == "Lançados":
         col_tit, col_sync = st.columns([4, 1])
-        col_tit.title("📋Reserva de Cesta Básica")
+        col_tit.title("📋 Reserva de Cesta Básica")
         if col_sync.button("🔄 Sincronizar", use_container_width=True):
             st.toast("Buscando novos registros...")
             time.sleep(0.5)
@@ -81,8 +81,8 @@ else:
             
             if not df_all.empty:
                 pendentes_df = df_all[df_all['tratado'] == False].copy()
-                pronts_pend_df = pendentes_df[pendentes_df['nome_completo'].isna() | (pendentes_df['nome_completo'] == "")]
-                novos_pend_df = pendentes_df[pendentes_df['nome_completo'].notna() & (pendentes_df['nome_completo'] != "")]
+                pronts_pend_df = pendentes_df[pendentes_df['nome_completo'].isna() | (pendentes_df['nome_completo'] == "")].copy()
+                novos_pend_df = pendentes_df[pendentes_df['nome_completo'].notna() & (pendentes_df['nome_completo'] != "")].copy()
 
                 # --- MÉTRICAS E LOGÍSTICA ---
                 st.markdown("##### 📊 Resumo Logístico")
@@ -96,9 +96,29 @@ else:
                 m_ita.markdown(f"<div class='metric-container'><div class='metric-label'>📍 Itaquera</div><div class='metric-value'>{int(pendentes_df[pendentes_df['local_retirada'] == 'Itaquera']['quantidade_cestas'].sum())}</div></div>", unsafe_allow_html=True)
                 m_gua.markdown(f"<div class='metric-container'><div class='metric-label'>📍 Pq. Guarani</div><div class='metric-value'>{int(pendentes_df[pendentes_df['local_retirada'] == 'Pq. Guarani']['quantidade_cestas'].sum())}</div></div>", unsafe_allow_html=True)
 
+                st.write("")
+                # --- BOTÕES DE EXPORTAÇÃO (ORDEm ATUALIZADA) ---
+                exp1, exp2 = st.columns(2)
+                with exp1:
+                    if not pronts_pend_df.empty:
+                        cols_p = ['data_sistema', 'nome_solicitante', 'tipo_solicitante', 'local_retirada', 'num_prontuario', 'quantidade_cestas', 'comum_solicitante']
+                        map_p = {'data_sistema': 'Data', 'nome_solicitante': 'Solicitante', 'tipo_solicitante': 'Cargo', 'local_retirada': 'Local Entrega', 'num_prontuario': 'Nº Prontuário', 'quantidade_cestas': 'Qtd Cestas', 'comum_solicitante': 'Comum Solicitante'}
+                        df_p_exp = pronts_pend_df[[c for c in cols_p if c in pronts_pend_df.columns]].rename(columns=map_p)
+                        csv_p = df_p_exp.to_csv(index=False, sep=';', encoding='utf-8-sig').encode('utf-8-sig')
+                        st.download_button("📥 EXCEL: PRONTUÁRIOS", csv_p, f"prontuarios_{datetime.now().strftime('%d_%m')}.csv", "text/csv", type="primary")
+                with exp2:
+                    if not novos_pend_df.empty:
+                        # Ordem solicitada: Data, Solicitante, Cargo, Local, e todos os outros dados
+                        cols_n = ['data_sistema', 'nome_solicitante', 'tipo_solicitante', 'local_retirada', 'nome_completo', 'idade', 'tempo_batismo', 'estado_civil', 'comum_assistido', 'endereco', 'bairro', 'cep', 'quantidade_cestas', 'nome_conjuge', 'idade_conjuge', 'batismo_conjuge', 'comum_solicitante']
+                        map_n = {'data_sistema': 'Data Pedido', 'nome_solicitante': 'Solicitante', 'tipo_solicitante': 'Cargo Solicitante', 'local_retirada': 'Local Entrega', 'nome_completo': 'Nome Assistido', 'idade': 'Idade', 'tempo_batismo': 'Tempo Batismo', 'estado_civil': 'Estado Civil', 'comum_assistido': 'Comum Assistido', 'endereco': 'Endereço', 'bairro': 'Bairro', 'cep': 'CEP', 'quantidade_cestas': 'Qtd Cestas', 'nome_conjuge': 'Nome Cônjuge', 'idade_conjuge': 'Idade Cônjuge', 'batismo_conjuge': 'Batismo Cônjuge', 'comum_solicitante': 'Comum Solicitante'}
+                        df_n_exp = novos_pend_df[[c for c in cols_n if c in novos_pend_df.columns]].rename(columns=map_n)
+                        csv_n = df_n_exp.to_csv(index=False, sep=';', encoding='utf-8-sig').encode('utf-8-sig')
+                        st.download_button("📥 EXCEL: Prontuários NOVOS", csv_n, f"Prontuários_novos_{datetime.now().strftime('%d_%m')}.csv", "text/csv", type="primary")
+
                 st.divider()
                 tab_p, tab_n, tab_t = st.tabs(["📋 Prontuários", "🆕 Novos Prontuários", "✅ Histórico"])
 
+                # --- VISUALIZAÇÃO EM TELA ---
                 with tab_p:
                     for _, item in pronts_pend_df.iterrows():
                         with st.container(border=True):
