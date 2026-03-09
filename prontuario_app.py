@@ -2,6 +2,7 @@ import streamlit as st
 from supabase import create_client, Client
 from datetime import datetime, timedelta
 import pandas as pd
+import numpy as np
 import time
 import io
 
@@ -18,7 +19,6 @@ st.markdown("""
     .nome-header { font-size: 1.2rem; font-weight: 700; color: #111827; }
     .label-info { color: #4b5563; font-weight: 600; font-size: 0.9rem; }
     .value-info { color: #1f2937; font-weight: 400; font-size: 0.95rem; }
-    /* Estilo dos botões de download */
     .stDownloadButton button { width: 100% !important; border-radius: 8px !important; }
     </style>
     """, unsafe_allow_html=True)
@@ -33,7 +33,6 @@ except:
     st.error("Erro de conexão com o banco de dados.")
     st.stop()
 
-# --- ESTADO DA SESSÃO ---
 if 'autenticado' not in st.session_state: st.session_state.autenticado = False
 if 'lista_prontuarios' not in st.session_state: st.session_state.lista_prontuarios = []
 if 'form_key' not in st.session_state: st.session_state.form_key = 0
@@ -72,91 +71,98 @@ else:
         try:
             res = supabase.table("registros_piedade").select("*").order("data_sistema", desc=True).execute()
             dados = res.data
-            pendentes = [x for x in dados if not x.get('tratado')]
-            pronts_pend = [x for x in pendentes if not x.get('nome_completo')]
-            novos_pend = [x for x in pendentes if x.get('nome_completo')]
             
-            # Métricas
-            m1, m2, m3, m4 = st.columns(4)
-            m1.markdown(f"<div class='metric-container'><div class='metric-label'>📦 Total Cestas</div><div class='metric-value'>{sum(int(x.get('quantidade_cestas') or 0) for x in pendentes)}</div></div>", unsafe_allow_html=True)
-            m2.markdown(f"<div class='metric-container'><div class='metric-label'>📋 Prontuários</div><div class='metric-value'>{len(pronts_pend)}</div></div>", unsafe_allow_html=True)
-            m3.markdown(f"<div class='metric-container'><div class='metric-label'>🆕 Novos Casos</div><div class='metric-value'>{len(novos_pend)}</div></div>", unsafe_allow_html=True)
-            m4.markdown(f"<div class='metric-container'><div class='metric-label'>📊 Total Casos</div><div class='metric-value'>{len(pendentes)}</div></div>", unsafe_allow_html=True)
-
-            # --- SEÇÃO DE EXPORTAÇÃO SEPARADA ---
-            st.write("")
-            exp1, exp2 = st.columns(2)
+            # DataFrame para processamento rigoroso
+            df_all = pd.DataFrame(dados) if dados else pd.DataFrame()
             
-            with exp1:
-                if pronts_pend:
-                    df_p = pd.DataFrame(pronts_pend)
-                    map_p = {'num_prontuario': 'Prontuário', 'quantidade_cestas': 'Qtd', 'local_retirada': 'Local', 'tipo_solicitante': 'Cargo Solicit.', 'nome_solicitante': 'Nome Solicit.', 'data_sistema': 'Data'}
-                    df_p_f = df_p[[c for c in map_p.keys() if c in df_p.columns]].rename(columns=map_p)
-                    csv_p = df_p_f.to_csv(index=False, sep=';', encoding='utf-8-sig').encode('utf-8-sig')
-                    st.download_button("📥 EXCEL: LISTA PRONTUÁRIOS", csv_p, f"prontuarios_{datetime.now().strftime('%d_%m')}.csv", "text/csv", type="primary")
+            if not df_all.empty:
+                # Filtragem rigorosa (Tratado = False)
+                pendentes_df = df_all[df_all['tratado'] == False].copy()
+                
+                # SEPARAÇÃO: Prontuários (Tem número, não tem nome completo)
+                pronts_pend_df = pendentes_df[pendentes_df['nome_completo'].isna() | (pendentes_df['nome_completo'] == "")]
+                
+                # SEPARAÇÃO: Novos Casos (Tem nome completo)
+                novos_pend_df = pendentes_df[pendentes_df['nome_completo'].notna() & (pendentes_df['nome_completo'] != "")]
 
-            with exp2:
-                if novos_pend:
-                    df_n = pd.DataFrame(novos_pend)
-                    map_n = {
-                        'nome_completo': 'Nome Assistido', 'quantidade_cestas': 'Qtd', 'local_retirada': 'Local', 'comum_assistido': 'Comum Assistido',
-                        'idade': 'Idade', 'estado_civil': 'Est. Civil', 'tempo_batismo': 'Batismo', 'nome_conjuge': 'Cônjuge', 'endereco': 'Endereço', 
-                        'bairro': 'Bairro', 'tipo_solicitante': 'Cargo Solicit.', 'nome_solicitante': 'Nome Solicit.', 'data_sistema': 'Data'
-                    }
-                    df_n_f = df_n[[c for c in map_n.keys() if c in df_n.columns]].rename(columns=map_n)
-                    csv_n = df_n_f.to_csv(index=False, sep=';', encoding='utf-8-sig').encode('utf-8-sig')
-                    st.download_button("📥 EXCEL: CASOS NOVOS (Ficha Completa)", csv_n, f"casos_novos_{datetime.now().strftime('%d_%m')}.csv", "text/csv", type="primary")
+                # Métricas
+                m1, m2, m3, m4 = st.columns(4)
+                m1.markdown(f"<div class='metric-container'><div class='metric-label'>📦 Total Cestas</div><div class='metric-value'>{int(pendentes_df['quantidade_cestas'].sum())}</div></div>", unsafe_allow_html=True)
+                m2.markdown(f"<div class='metric-container'><div class='metric-label'>📋 Prontuários</div><div class='metric-value'>{len(pronts_pend_df)}</div></div>", unsafe_allow_html=True)
+                m3.markdown(f"<div class='metric-container'><div class='metric-label'>🆕 Novos Casos</div><div class='metric-value'>{len(novos_pend_df)}</div></div>", unsafe_allow_html=True)
+                m4.markdown(f"<div class='metric-container'><div class='metric-label'>📊 Total Casos</div><div class='metric-value'>{len(pendentes_df)}</div></div>", unsafe_allow_html=True)
 
-            st.divider()
-            tab_p, tab_n, tab_t = st.tabs(["📋 Prontuários Pendentes", "🆕 Novos para Análise", "✅ Histórico Tratados"])
+                st.write("")
+                exp1, exp2 = st.columns(2)
+                
+                with exp1:
+                    if not pronts_pend_df.empty:
+                        map_p = {'num_prontuario': 'Prontuário', 'quantidade_cestas': 'Qtd', 'local_retirada': 'Local', 'tipo_solicitante': 'Cargo Solicit.', 'nome_solicitante': 'Nome Solicit.', 'data_sistema': 'Data'}
+                        df_p_f = pronts_pend_df[[c for c in map_p.keys() if c in pronts_pend_df.columns]].rename(columns=map_p)
+                        csv_p = df_p_f.to_csv(index=False, sep=';', encoding='utf-8-sig').encode('utf-8-sig')
+                        st.download_button("📥 EXCEL: LISTA PRONTUÁRIOS", csv_p, f"prontuarios_{datetime.now().strftime('%d_%m')}.csv", "text/csv", type="primary")
 
-            with tab_p:
-                for item in pronts_pend:
-                    with st.container(border=True):
-                        c1, c2, c3 = st.columns([3, 2, 1])
-                        c1.markdown(f"<div class='nome-header'>Prontuário: {item['num_prontuario']}</div>", unsafe_allow_html=True)
-                        c1.caption(f"📅 {item['data_sistema']} | {item['tipo_solicitante']}: {item['nome_solicitante']}")
-                        c2.markdown(f"**📦 {item['quantidade_cestas']} Cesta(s)** | 📍 {item['local_retirada']}")
-                        if c3.button("Lançar", key=f"lp_{item['id']}", use_container_width=True):
-                            supabase.table("registros_piedade").update({"tratado": True}).eq("id", item['id']).execute(); st.rerun()
+                with exp2:
+                    if not novos_pend_df.empty:
+                        map_n = {
+                            'nome_completo': 'Nome Assistido', 'quantidade_cestas': 'Qtd', 'local_retirada': 'Local', 'comum_assistido': 'Comum Assistido',
+                            'idade': 'Idade', 'estado_civil': 'Est. Civil', 'tempo_batismo': 'Batismo', 'nome_conjuge': 'Cônjuge', 'endereco': 'Endereço', 
+                            'bairro': 'Bairro', 'tipo_solicitante': 'Cargo Solicit.', 'nome_solicitante': 'Nome Solicit.', 'data_sistema': 'Data'
+                        }
+                        df_n_f = novos_pend_df[[c for c in map_n.keys() if c in novos_pend_df.columns]].rename(columns=map_n)
+                        csv_n = df_n_f.to_csv(index=False, sep=';', encoding='utf-8-sig').encode('utf-8-sig')
+                        st.download_button("📥 EXCEL: CASOS NOVOS", csv_n, f"casos_novos_{datetime.now().strftime('%d_%m')}.csv", "text/csv", type="primary")
 
-            with tab_n:
-                for item in novos_pend:
-                    with st.container(border=True):
-                        st.markdown(f"<div class='nome-header'>👤 {item['nome_completo']}</div>", unsafe_allow_html=True)
-                        col_a, col_b, col_c = st.columns(3)
-                        with col_a:
-                            st.markdown(f"<span class='label-info'>🎂 Idade:</span> <span class='value-info'>{item.get('idade')} anos</span>", unsafe_allow_html=True)
-                            st.markdown(f"<span class='label-info'>💍 Estado Civil:</span> <span class='value-info'>{item.get('estado_civil')}</span>", unsafe_allow_html=True)
-                        with col_b:
-                            st.markdown(f"<span class='label-info'>⛪ Comum:</span> <span class='value-info'>{item.get('comum_assistido')}</span>", unsafe_allow_html=True)
-                            st.markdown(f"<span class='label-info'>🌊 Batismo:</span> <span class='value-info'>{item.get('tempo_batismo') or 'Não inf.'}</span>", unsafe_allow_html=True)
-                        with col_c:
-                            st.markdown(f"<span class='label-info'>📦 Cestas:</span> <span class='value-info'>{item.get('quantidade_cestas')} un.</span>", unsafe_allow_html=True)
-                            st.markdown(f"<span class='label-info'>📅 Data:</span> <span class='value-info'>{item.get('data_sistema')}</span>", unsafe_allow_html=True)
+                st.divider()
+                tab_p, tab_n, tab_t = st.tabs(["📋 Prontuários Pendentes", "🆕 Novos para Análise", "✅ Histórico Tratados"])
 
-                        if item.get('estado_civil') == "Casado(a)":
-                            st.markdown("""<div style='margin-top:10px; border-top:1px dashed #ddd; padding-top:10px;'>
-                                <span class='label-info'>👩‍❤️‍👨 Dados do Cônjuge:</span></div>""", unsafe_allow_html=True)
-                            ca, cb, cc = st.columns(3)
-                            ca.markdown(f"<span class='label-info'>Nome:</span> <span class='value-info'>{item.get('nome_conjuge')}</span>", unsafe_allow_html=True)
-                            cb.markdown(f"<span class='label-info'>Idade:</span> <span class='value-info'>{item.get('idade_conjuge')} anos</span>", unsafe_allow_html=True)
-                            cc.markdown(f"<span class='label-info'>Batismo:</span> <span class='value-info'>{item.get('batismo_conjuge') or 'Não inf.'}</span>", unsafe_allow_html=True)
+                with tab_p:
+                    for _, item in pronts_pend_df.iterrows():
+                        with st.container(border=True):
+                            c1, c2, c3 = st.columns([3, 2, 1])
+                            c1.markdown(f"<div class='nome-header'>Prontuário: {item['num_prontuario']}</div>", unsafe_allow_html=True)
+                            c1.caption(f"📅 {item['data_sistema']} | {item['tipo_solicitante']}: {item['nome_solicitante']}")
+                            c2.markdown(f"**📦 {item['quantidade_cestas']} Cesta(s)** | 📍 {item['local_retirada']}")
+                            if c3.button("Lançar", key=f"lp_{item['id']}", use_container_width=True):
+                                supabase.table("registros_piedade").update({"tratado": True}).eq("id", item['id']).execute(); st.rerun()
 
-                        st.markdown(f"<div style='margin-top:5px;'><span class='label-info'>📍 Local Retirada:</span> <span class='value-info'>{item.get('local_retirada')}</span> | <span class='label-info'>🏠 Endereço:</span> <span class='value-info'>{item.get('endereco')}, {item.get('bairro')}</span></div>", unsafe_allow_html=True)
-                        st.caption(f"Solicitado por {item['tipo_solicitante']}: {item['nome_solicitante']}")
-                        
-                        if st.button("Marcar como Lançado", key=f"ln_{item['id']}", type="primary", use_container_width=True):
-                            supabase.table("registros_piedade").update({"tratado": True}).eq("id", item['id']).execute(); st.rerun()
+                with tab_n:
+                    for _, item in novos_pend_df.iterrows():
+                        with st.container(border=True):
+                            st.markdown(f"<div class='nome-header'>👤 {item['nome_completo']}</div>", unsafe_allow_html=True)
+                            col_a, col_b, col_c = st.columns(3)
+                            with col_a:
+                                st.markdown(f"<span class='label-info'>🎂 Idade:</span> <span class='value-info'>{item['idade']} anos</span>", unsafe_allow_html=True)
+                                st.markdown(f"<span class='label-info'>💍 Estado Civil:</span> <span class='value-info'>{item['estado_civil']}</span>", unsafe_allow_html=True)
+                            with col_b:
+                                st.markdown(f"<span class='label-info'>⛪ Comum:</span> <span class='value-info'>{item['comum_assistido']}</span>", unsafe_allow_html=True)
+                                st.markdown(f"<span class='label-info'>🌊 Batismo:</span> <span class='value-info'>{item['tempo_batismo'] or 'Não inf.'}</span>", unsafe_allow_html=True)
+                            with col_c:
+                                st.markdown(f"<span class='label-info'>📦 Cestas:</span> <span class='value-info'>{item['quantidade_cestas']} un.</span>", unsafe_allow_html=True)
+                                st.markdown(f"<span class='label-info'>📅 Data:</span> <span class='value-info'>{item['data_sistema']}</span>", unsafe_allow_html=True)
 
-            with tab_t:
-                tratados = [x for x in dados if x.get('tratado')]
-                if tratados and st.button("🚨 LIMPAR HISTÓRICO"):
-                    supabase.table("registros_piedade").delete().eq("tratado", True).execute(); st.rerun()
-                for t in tratados:
-                    st.text(f"✅ {t.get('nome_completo') or 'Pront. ' + str(t.get('num_prontuario'))} - {t.get('data_sistema')}")
+                            if item['estado_civil'] == "Casado(a)":
+                                st.markdown("<div style='margin-top:10px; border-top:1px dashed #ddd; padding-top:10px;'><span class='label-info'>👩‍❤️‍👨 Dados do Cônjuge:</span></div>", unsafe_allow_html=True)
+                                ca, cb, cc = st.columns(3)
+                                ca.markdown(f"<span class='label-info'>Nome:</span> <span class='value-info'>{item['nome_conjuge']}</span>", unsafe_allow_html=True)
+                                cb.markdown(f"<span class='label-info'>Idade:</span> <span class='value-info'>{item['idade_conjuge']} anos</span>", unsafe_allow_html=True)
+                                cc.markdown(f"<span class='label-info'>Batismo:</span> <span class='value-info'>{item['batismo_conjuge'] or 'Não inf.'}</span>", unsafe_allow_html=True)
 
-        except Exception as e: st.error(f"Erro: {e}")
+                            st.markdown(f"<div style='margin-top:5px;'><span class='label-info'>📍 Local Retirada:</span> <span class='value-info'>{item['local_retirada']}</span> | <span class='label-info'>🏠 Endereço:</span> <span class='value-info'>{item['endereco']}, {item['bairro']}</span></div>", unsafe_allow_html=True)
+                            st.caption(f"Solicitado por {item['tipo_solicitante']}: {item['nome_solicitante']}")
+                            
+                            if st.button("Marcar como Lançado", key=f"ln_{item['id']}", type="primary", use_container_width=True):
+                                supabase.table("registros_piedade").update({"tratado": True}).eq("id", item['id']).execute(); st.rerun()
+
+                with tab_t:
+                    tratados = df_all[df_all['tratado'] == True]
+                    if not tratados.empty:
+                        if st.button("🚨 LIMPAR HISTÓRICO"):
+                            supabase.table("registros_piedade").delete().eq("tratado", True).execute(); st.rerun()
+                        for _, t in tratados.iterrows():
+                            st.text(f"✅ {t['nome_completo'] if pd.notna(t['nome_completo']) and t['nome_completo'] != '' else 'Pront. ' + str(t['num_prontuario'])} - {t['data_sistema']}")
+
+        except Exception as e: st.error(f"Erro ao processar dados: {e}")
 
     # --- VISÃO: RESERVA ---
     else:
