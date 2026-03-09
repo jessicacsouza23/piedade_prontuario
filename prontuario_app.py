@@ -68,7 +68,7 @@ else:
     # --- VISÃO: LANÇADOS ---
     if st.session_state.cargo == "Lançados":
         col_tit, col_sync = st.columns([4, 1])
-        col_tit.title("📋 Painel de Controle")
+        col_tit.title("📋Reserva de Cesta Básica")
         if col_sync.button("🔄 Sincronizar", use_container_width=True):
             st.toast("Buscando novos registros...")
             time.sleep(0.5)
@@ -86,10 +86,10 @@ else:
 
                 # --- MÉTRICAS E LOGÍSTICA ---
                 st.markdown("##### 📊 Resumo Logístico")
-                c_casos, c_pront, c_novos = st.columns(3)
-                c_casos.markdown(f"<div class='metric-container'><div class='metric-label'>📝 Total de Casos</div><div class='metric-value'>{len(pendentes_df)}</div></div>", unsafe_allow_html=True)
+                c_Prontuários, c_pront, c_novos = st.columns(3)
+                c_Prontuários.markdown(f"<div class='metric-container'><div class='metric-label'>📝 Total de Prontuários</div><div class='metric-value'>{len(pendentes_df)}</div></div>", unsafe_allow_html=True)
                 c_pront.markdown(f"<div class='metric-container'><div class='metric-label'>📋 Prontuários</div><div class='metric-value'>{len(pronts_pend_df)}</div></div>", unsafe_allow_html=True)
-                c_novos.markdown(f"<div class='metric-container'><div class='metric-label'>🆕 Novos Casos</div><div class='metric-value'>{len(novos_pend_df)}</div></div>", unsafe_allow_html=True)
+                c_novos.markdown(f"<div class='metric-container'><div class='metric-label'>🆕 Novos Prontuários</div><div class='metric-value'>{len(novos_pend_df)}</div></div>", unsafe_allow_html=True)
 
                 m_total, m_ita, m_gua = st.columns(3)
                 m_total.markdown(f"<div class='metric-container'><div class='metric-label'>📦 Total Cestas</div><div class='metric-value'>{int(pendentes_df['quantidade_cestas'].sum())}</div></div>", unsafe_allow_html=True)
@@ -97,7 +97,7 @@ else:
                 m_gua.markdown(f"<div class='metric-container'><div class='metric-label'>📍 Pq. Guarani</div><div class='metric-value'>{int(pendentes_df[pendentes_df['local_retirada'] == 'Pq. Guarani']['quantidade_cestas'].sum())}</div></div>", unsafe_allow_html=True)
 
                 st.divider()
-                tab_p, tab_n, tab_t = st.tabs(["📋 Prontuários", "🆕 Novos Casos", "✅ Histórico"])
+                tab_p, tab_n, tab_t = st.tabs(["📋 Prontuários", "🆕 Novos Prontuários", "✅ Histórico"])
 
                 with tab_p:
                     for _, item in pronts_pend_df.iterrows():
