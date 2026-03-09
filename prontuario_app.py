@@ -67,10 +67,9 @@ else:
 
     # --- VISÃO: LANÇADOS ---
     if st.session_state.cargo == "Lançados":
-        # Cabeçalho com botão de Sincronizar
         col_tit, col_sync = st.columns([4, 1])
         col_tit.title("📋 Painel de Controle")
-        if col_sync.button("🔄 Sincronizar", use_container_width=True, help="Clique para carregar novos pedidos"):
+        if col_sync.button("🔄 Sincronizar", use_container_width=True):
             st.toast("Atualizando dados...")
             time.sleep(0.5)
             st.rerun()
@@ -85,22 +84,18 @@ else:
                 pronts_pend_df = pendentes_df[pendentes_df['nome_completo'].isna() | (pendentes_df['nome_completo'] == "")]
                 novos_pend_df = pendentes_df[pendentes_df['nome_completo'].notna() & (pendentes_df['nome_completo'] != "")]
 
-                # --- MÉTRICAS DE CONTAGEM (CASOS) ---
                 st.markdown("##### 📊 Controle de Casos")
                 c_casos, c_pront, c_novos = st.columns(3)
                 c_casos.markdown(f"<div class='metric-container'><div class='metric-label'>📝 Total de Casos</div><div class='metric-value'>{len(pendentes_df)}</div></div>", unsafe_allow_html=True)
                 c_pront.markdown(f"<div class='metric-container'><div class='metric-label'>📋 Prontuários</div><div class='metric-value'>{len(pronts_pend_df)}</div></div>", unsafe_allow_html=True)
                 c_novos.markdown(f"<div class='metric-container'><div class='metric-label'>🆕 Novos Casos</div><div class='metric-value'>{len(novos_pend_df)}</div></div>", unsafe_allow_html=True)
 
-                # --- MÉTRICAS DE LOGÍSTICA (CESTAS) ---
                 st.markdown("##### 📦 Logística de Cestas")
                 m_total, m_ita, m_gua = st.columns(3)
                 total_geral_cestas = int(pendentes_df['quantidade_cestas'].sum())
                 m_total.markdown(f"<div class='metric-container'><div class='metric-label'>📦 Total Cestas</div><div class='metric-value'>{total_geral_cestas}</div></div>", unsafe_allow_html=True)
-                
                 soma_ita = int(pendentes_df[pendentes_df['local_retirada'] == "Itaquera"]['quantidade_cestas'].sum())
                 m_ita.markdown(f"<div class='metric-container'><div class='metric-label'>📍 Itaquera</div><div class='metric-value'>{soma_ita}</div></div>", unsafe_allow_html=True)
-                
                 soma_gua = int(pendentes_df[pendentes_df['local_retirada'] == "Pq. Guarani"]['quantidade_cestas'].sum())
                 m_gua.markdown(f"<div class='metric-container'><div class='metric-label'>📍 Pq. Guarani</div><div class='metric-value'>{soma_gua}</div></div>", unsafe_allow_html=True)
 
@@ -109,41 +104,16 @@ else:
                 
                 with exp1:
                     if not pronts_pend_df.empty:
-                        map_p = {
-                            'data_sistema': 'Data', 
-                            'local_retirada': 'Local Retirada', 
-                            'tipo_solicitante': 'Cargo Solicitante',
-                            'nome_solicitante': 'Solicitante', 
-                            'num_prontuario': 'Prontuário', 
-                            'quantidade_cestas': 'Qtd'
-                        }
+                        map_p = {'data_sistema': 'Data', 'local_retirada': 'Local Retirada', 'tipo_solicitante': 'Cargo Solicitante', 'nome_solicitante': 'Solicitante', 'num_prontuario': 'Prontuário', 'quantidade_cestas': 'Qtd'}
                         csv_p = pronts_pend_df[list(map_p.keys())].rename(columns=map_p).to_csv(index=False, sep=';', encoding='utf-8-sig').encode('utf-8-sig')
                         st.download_button("📥 EXCEL: PRONTUÁRIOS", csv_p, f"prontuarios_{datetime.now().strftime('%d_%m')}.csv", "text/csv", type="primary")
 
                 with exp2:
                     if not novos_pend_df.empty:
-                        map_n = {
-                            'data_sistema': 'Data Pedido', 
-                            'local_retirada': 'Local Retirada', 
-                            'tipo_solicitante': 'Cargo Solicitante',
-                            'nome_solicitante': 'Solicitante', 
-                            'comum_solicitante': 'Comum Solicitante',
-                            'nome_completo': 'Nome Assistido', 
-                            'quantidade_cestas': 'Qtd Cestas', 
-                            'idade': 'Idade', 
-                            'estado_civil': 'Estado Civil',
-                            'comum_assistido': 'Comum Assistido', 
-                            'tempo_batismo': 'Tempo Batismo', 
-                            'nome_conjuge': 'Nome Cônjuge',
-                            'idade_conjuge': 'Idade Cônjuge', 
-                            'batismo_conjuge': 'Batismo Cônjuge', 
-                            'endereco': 'Endereço', 
-                            'bairro': 'Bairro', 
-                            'cep': 'CEP'
-                        }
+                        map_n = {'data_sistema': 'Data Pedido', 'local_retirada': 'Local Retirada', 'tipo_solicitante': 'Cargo Solicitante', 'nome_solicitante': 'Solicitante', 'comum_solicitante': 'Comum Solicitante', 'nome_completo': 'Nome Assistido', 'quantidade_cestas': 'Qtd Cestas', 'idade': 'Idade', 'estado_civil': 'Estado Civil', 'comum_assistido': 'Comum Assistido', 'tempo_batismo': 'Tempo Batismo', 'nome_conjuge': 'Nome Cônjuge', 'idade_conjuge': 'Idade Cônjuge', 'batismo_conjuge': 'Batismo Cônjuge', 'endereco': 'Endereço', 'bairro': 'Bairro', 'cep': 'CEP'}
                         cols_existentes = [c for c in map_n.keys() if c in novos_pend_df.columns]
                         csv_n = novos_pend_df[cols_existentes].rename(columns=map_n).to_csv(index=False, sep=';', encoding='utf-8-sig').encode('utf-8-sig')
-                        st.download_button("📥 EXCEL: CASOS NOVOS (COMPLETO)", csv_n, f"casos_novos_completo_{datetime.now().strftime('%d_%m')}.csv", "text/csv", type="primary")
+                        st.download_button("📥 EXCEL: CASOS NOVOS", csv_n, f"casos_novos_{datetime.now().strftime('%d_%m')}.csv", "text/csv", type="primary")
 
                 st.divider()
                 tab_p, tab_n, tab_t = st.tabs(["📋 Prontuários", "🆕 Novos Casos", "✅ Histórico"])
@@ -193,9 +163,9 @@ else:
                         for _, t in tratados.iterrows():
                             st.text(f"✅ {t['nome_completo'] if pd.notna(t['nome_completo']) and t['nome_completo'] != '' else 'Pront. ' + str(t['num_prontuario'])} - {t['data_sistema']}")
             else:
-                st.info("Não há pedidos pendentes no momento.")
+                st.info("Não há pedidos pendentes.")
 
-        except Exception as e: st.error(f"Erro ao carregar dados: {e}")
+        except Exception as e: st.error(f"Erro: {e}")
 
     # --- VISÃO: RESERVA (Irmãs da Piedade/Diáconos) ---
     else:
@@ -216,7 +186,7 @@ else:
             qtd_p = cp2.number_input("Qtd", min_value=1, value=1, key=f"qp_{p_key}")
             if cp3.button("➕ Adicionar"):
                 if num_p:
-                    if any(x['pront'] == num_p for x in st.session_state.lista_prontuarios): st.error("Já está na lista.")
+                    if any(x['pront'] == num_p for x in st.session_state.lista_prontuarios): st.error("Já está na lista abaixo.")
                     else:
                         st.session_state.lista_prontuarios.append({"id": time.time(), "pront": num_p, "qtd": qtd_p})
                         st.session_state.p_key += 1; st.rerun()
@@ -252,12 +222,23 @@ else:
 
         if st.button("💾 ENVIAR RESERVA", type="primary", use_container_width=True):
             if not n_sol or not c_sol: st.error("Identifique-se!"); st.stop()
-            if is_novo and (not n_comp or n_id <= 0): st.error("Preencha Nome e Idade."); st.stop()
+            if not st.session_state.lista_prontuarios and not is_novo: st.error("Adicione pelo menos um prontuário ou caso novo."); st.stop()
+            
             data_agora = datetime.now().strftime('%d/%m/%Y %H:%M')
             try:
+                # --- TRAVA DE DUPLICIDADE ---
+                for it in st.session_state.lista_prontuarios:
+                    check = supabase.table("registros_piedade").select("id").eq("num_prontuario", str(it['pront'])).eq("tratado", False).execute()
+                    if check.data:
+                        st.error(f"🚨 O Prontuário nº {it['pront']} já possui uma reserva pendente no sistema!")
+                        st.stop()
+
+                # --- PROCESSAMENTO ---
                 for it in st.session_state.lista_prontuarios:
                     supabase.table("registros_piedade").insert({"tipo_solicitante": t_sol, "nome_solicitante": n_sol, "comum_solicitante": c_sol, "num_prontuario": str(it['pront']), "quantidade_cestas": int(it['qtd']), "local_retirada": loc_ret, "data_sistema": data_agora, "tratado": False}).execute()
+                
                 if is_novo:
                     supabase.table("registros_piedade").insert({"tipo_solicitante": t_sol, "nome_solicitante": n_sol, "comum_solicitante": c_sol, "nome_completo": n_comp, "comum_assistido": c_ast, "quantidade_cestas": int(q_novo), "idade": int(n_id), "tempo_batismo": n_bat, "estado_civil": n_civ, "nome_conjuge": n_conj, "idade_conjuge": int(n_conj_id), "batismo_conjuge": n_conj_bat, "endereco": n_end, "bairro": n_bai, "cep": n_cep, "local_retirada": loc_ret, "data_sistema": data_agora, "tratado": False}).execute()
-                st.balloons(); st.success("✅ ENVIADO!"); time.sleep(1); resetar_formulario(); st.rerun()
-            except Exception as e: st.error(f"Erro: {e}")
+                
+                st.balloons(); st.success("✅ ENVIADO COM SUCESSO!"); time.sleep(1); resetar_formulario(); st.rerun()
+            except Exception as e: st.error(f"Erro ao salvar: {e}")
