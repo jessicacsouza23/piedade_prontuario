@@ -102,17 +102,37 @@ else:
                 
                 with exp1:
                     if not pronts_pend_df.empty:
-                        map_p = {'data_sistema': 'Data', 'local_retirada': 'Local Retirada', 'nome_solicitante': 'Solicitante', 'num_prontuario': 'Prontuário', 'quantidade_cestas': 'Qtd'}
+                        map_p = {
+                            'data_sistema': 'Data', 
+                            'local_retirada': 'Local Retirada', 
+                            'tipo_solicitante': 'Cargo Solicitante',
+                            'nome_solicitante': 'Solicitante', 
+                            'num_prontuario': 'Prontuário', 
+                            'quantidade_cestas': 'Qtd'
+                        }
                         csv_p = pronts_pend_df[list(map_p.keys())].rename(columns=map_p).to_csv(index=False, sep=';', encoding='utf-8-sig').encode('utf-8-sig')
                         st.download_button("📥 EXCEL: PRONTUÁRIOS", csv_p, f"prontuarios_{datetime.now().strftime('%d_%m')}.csv", "text/csv", type="primary")
 
                 with exp2:
                     if not novos_pend_df.empty:
                         map_n = {
-                            'data_sistema': 'Data Pedido', 'local_retirada': 'Local Retirada', 'nome_solicitante': 'Solicitante', 'comum_solicitante': 'Comum Solicitante',
-                            'nome_completo': 'Nome Assistido', 'quantidade_cestas': 'Qtd Cestas', 'idade': 'Idade', 'estado_civil': 'Estado Civil',
-                            'comum_assistido': 'Comum Assistido', 'tempo_batismo': 'Tempo Batismo', 'nome_conjuge': 'Nome Cônjuge',
-                            'idade_conjuge': 'Idade Cônjuge', 'batismo_conjuge': 'Batismo Cônjuge', 'endereco': 'Endereço', 'bairro': 'Bairro', 'cep': 'CEP'
+                            'data_sistema': 'Data Pedido', 
+                            'local_retirada': 'Local Retirada', 
+                            'tipo_solicitante': 'Cargo Solicitante',
+                            'nome_solicitante': 'Solicitante', 
+                            'comum_solicitante': 'Comum Solicitante',
+                            'nome_completo': 'Nome Assistido', 
+                            'quantidade_cestas': 'Qtd Cestas', 
+                            'idade': 'Idade', 
+                            'estado_civil': 'Estado Civil',
+                            'comum_assistido': 'Comum Assistido', 
+                            'tempo_batismo': 'Tempo Batismo', 
+                            'nome_conjuge': 'Nome Cônjuge',
+                            'idade_conjuge': 'Idade Cônjuge', 
+                            'batismo_conjuge': 'Batismo Cônjuge', 
+                            'endereco': 'Endereço', 
+                            'bairro': 'Bairro', 
+                            'cep': 'CEP'
                         }
                         cols_existentes = [c for c in map_n.keys() if c in novos_pend_df.columns]
                         csv_n = novos_pend_df[cols_existentes].rename(columns=map_n).to_csv(index=False, sep=';', encoding='utf-8-sig').encode('utf-8-sig')
@@ -121,6 +141,7 @@ else:
                 st.divider()
                 tab_p, tab_n, tab_t = st.tabs(["📋 Prontuários", "🆕 Novos Casos", "✅ Histórico"])
 
+                # ... (Restante da lógica de abas permanece igual)
                 with tab_p:
                     for _, item in pronts_pend_df.iterrows():
                         with st.container(border=True):
@@ -154,7 +175,7 @@ else:
                             end2.markdown(f"<span class='label-info'>Bairro</span><br><span class='value-info'>{item['bairro']}</span>", unsafe_allow_html=True)
                             end3.markdown(f"<span class='label-info'>📦 Qtd / Local</span><br><span class='value-info'>{item['quantidade_cestas']} un / {item['local_retirada']}</span>", unsafe_allow_html=True)
                             
-                            st.caption(f"Solicitante: {item['nome_solicitante']} - {item['data_sistema']}")
+                            st.caption(f"Solicitante: {item['nome_solicitante']} ({item['tipo_solicitante']}) - {item['data_sistema']}")
                             if st.button("Concluir Lançamento", key=f"ln_{item['id']}", type="primary", use_container_width=True):
                                 supabase.table("registros_piedade").update({"tratado": True}).eq("id", item['id']).execute(); st.rerun()
 
