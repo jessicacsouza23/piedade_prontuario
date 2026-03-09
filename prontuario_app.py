@@ -68,7 +68,7 @@ else:
     # --- VISÃO: LANÇADOS ---
     if st.session_state.cargo == "Lançados":
         col_tit, col_sync = st.columns([4, 1])
-        col_tit.title("📋 Painel de Controle")
+        col_tit.title("📋 Reserva de Cesta Básica")
         if col_sync.button("🔄 Sincronizar", use_container_width=True):
             st.toast("Atualizando dados...")
             time.sleep(0.5)
