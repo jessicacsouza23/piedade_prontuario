@@ -105,9 +105,8 @@ else:
                 with exp2:
                     if not novos_pend_df.empty:
                         map_n = {
-                            'nome_completo': 'Nome Assistido', 'quantidade_cestas': 'Qtd', 'local_retirada': 'Local', 'comum_assistido': 'Comum Assistido',
-                            'idade': 'Idade', 'estado_civil': 'Est. Civil', 'tempo_batismo': 'Batismo', 'nome_conjuge': 'Cônjuge', 'endereco': 'Endereço', 
-                            'bairro': 'Bairro', 'tipo_solicitante': 'Cargo Solicit.', 'nome_solicitante': 'Nome Solicit.', 'data_sistema': 'Data'
+                            'tipo_solicitante': 'Cargo Solicit.', 'nome_solicitante': 'Nome Solicit.', 'data_sistema': 'Data', 'nome_completo': 'Nome Assistido', 'quantidade_cestas': 'Qtd', 'local_retirada': 'Local', 'comum_assistido': 'Comum Assistido',
+                            'idade': 'Idade', 'estado_civil': 'Est. Civil', 'tempo_batismo': 'Batismo', 'nome_conjuge': 'Cônjuge', 'endereco': 'Endereço', 'bairro': 'Bairro', 
                         }
                         df_n_f = novos_pend_df[[c for c in map_n.keys() if c in novos_pend_df.columns]].rename(columns=map_n)
                         csv_n = df_n_f.to_csv(index=False, sep=';', encoding='utf-8-sig').encode('utf-8-sig')
