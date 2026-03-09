@@ -176,7 +176,7 @@ else:
             c1, c2, c3 = st.columns([1.5, 1.5, 1.5])
             t_sol = c1.radio("Cargo:", ["Diácono", "Irmã da Piedade"], horizontal=True, key=f"ts_{f_key}")
             n_sol = c2.text_input("Nome do Solicitante:", key=f"ns_{f_key}")
-            c_sol = c3.text_input("Sua Comum:", key=f"cs_{f_key}")
+            c_sol = c3.text_input("Comum:", key=f"cs_{f_key}")
 
         st.divider()
         st.markdown("#### 📋 Prontuários Existentes")
