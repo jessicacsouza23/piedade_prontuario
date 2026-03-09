@@ -96,12 +96,19 @@ else:
             m2.markdown(f"<div class='metric-card'><div class='metric-label'>📋 Prontuários</div><div class='metric-value'>{len(pronts_pend)}</div></div>", unsafe_allow_html=True)
             m3.markdown(f"<div class='metric-card'><div class='metric-label'>🆕 Casos Novos</div><div class='metric-value'>{len(novos_pend)}</div></div>", unsafe_allow_html=True)
             
+            # EXPORTAÇÃO EM CSV (NÃO PRECISA DE PIP EXTRA)
             if not df_full.empty:
                 df_export = df_full[df_full['tratado'] == False].copy()
-                output = io.BytesIO()
-                with pd.ExcelWriter(output, engine='xlsxwriter') as writer:
-                    df_export.to_excel(writer, index=False, sheet_name='Reservas')
-                m4.download_button(label="📥 Baixar Excel", data=output.getvalue(), file_name=f"piedade_{datetime.now().strftime('%d_%m')}.xlsx", mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", use_container_width=True)
+                # Converter para CSV com codificação para Excel (utf-8-sig)
+                csv = df_export.to_csv(index=False, sep=';', encoding='utf-8-sig').encode('utf-8-sig')
+                
+                m4.download_button(
+                    label="📥 Baixar Dados (CSV)",
+                    data=csv,
+                    file_name=f"piedade_{datetime.now().strftime('%d_%m')}.csv",
+                    mime="text/csv",
+                    use_container_width=True
+                )
 
             st.divider()
             tab_p, tab_n, tab_t = st.tabs(["📋 Prontuários", "🆕 Novos Cadastros", "✅ Tratados"])
@@ -154,7 +161,7 @@ else:
             if col_p3.button("Adicionar"):
                 if num_p:
                     if any(x['pront'] == num_p for x in st.session_state.lista_prontuarios):
-                        st.error("Este prontuário já está na sua lista atual.")
+                        st.error("Prontuário já está na lista.")
                     else:
                         st.session_state.lista_prontuarios.append({"id": time.time(), "pront": num_p, "qtd": qtd_p})
                         st.session_state.p_key += 1
@@ -169,20 +176,27 @@ else:
         st.divider()
         st.markdown("### 3. Cadastro Novo")
         is_novo = st.toggle("INCLUIR NOVO CADASTRO?", key=f"inv_{f_key}")
-        n_comp, n_id, n_bat, n_civ, n_conj, n_conj_id, n_conj_bat, n_end, n_bai, n_cep, c_ast, q_novo = "", 0, "", "Solteiro(a)", "", 0, "", "", "", "", "", 1
         
         if is_novo:
             with st.container(border=True):
                 n_comp = st.text_input("Nome Completo *:", key=f"nc_{f_key}")
                 c_ast = st.text_input("Comum Assistido:", key=f"ca_{f_key}")
                 d1, d2, d3 = st.columns(3)
-                n_id, n_bat, n_civ = d1.number_input("Idade *:", min_value=0, key=f"id_{f_key}"), d2.text_input("Batismo:", key=f"ba_{f_key}"), d3.selectbox("Estado Civil:", ["Solteiro(a)", "Casado(a)", "Viúvo(a)", "Desquitado(a)"], key=f"civ_{f_key}")
+                n_id = d1.number_input("Idade *:", min_value=0, key=f"id_{f_key}")
+                n_bat = d2.text_input("Batismo:", key=f"ba_{f_key}")
+                n_civ = d3.selectbox("Estado Civil:", ["Solteiro(a)", "Casado(a)", "Viúvo(a)", "Desquitado(a)"], key=f"civ_{f_key}")
+                
+                n_conj, n_conj_id, n_conj_bat = "", 0, ""
                 if n_civ == "Casado(a)":
                     nj1, nj2, nj3 = st.columns([2, 1, 1])
-                    n_conj, n_conj_id, n_conj_bat = nj1.text_input("Cônjuge *:", key=f"nco_{f_key}"), nj2.number_input("Idade Cônjuge *:", min_value=0, key=f"ico_{f_key}"), nj3.text_input("Batismo Cônjuge:", key=f"bco_{f_key}")
+                    n_conj = nj1.text_input("Cônjuge *:", key=f"nco_{f_key}")
+                    n_conj_id = nj2.number_input("Idade Cônjuge *:", min_value=0, key=f"ico_{f_key}")
+                    n_conj_bat = nj3.text_input("Batismo Cônjuge:", key=f"bco_{f_key}")
+                
                 n_end = st.text_input("Endereço:", key=f"en_{f_key}")
                 b1, b2 = st.columns(2)
-                n_bai, n_cep = b1.text_input("Bairro:", key=f"bai_{f_key}"), b2.text_input("CEP:", key=f"cep_{f_key}")
+                n_bai = b1.text_input("Bairro:", key=f"bai_{f_key}")
+                n_cep = b2.text_input("CEP:", key=f"cep_{f_key}")
                 q_novo = st.number_input("Quantidade Cestas:", min_value=1, key=f"qn_{f_key}")
 
         loc_ret = st.radio("Local de Retirada:", ["Pq. Guarani", "Itaquera"], horizontal=True, key=f"loc_{f_key}")
@@ -190,20 +204,19 @@ else:
         if st.button("💾 SALVAR TUDO", type="primary", use_container_width=True):
             if not n_sol or not c_sol: st.error("Identifique-se!"); st.stop()
             
-            # --- VALIDAÇÃO GLOBAL DE DUPLICIDADE (Pendentes + Tratados) ---
+            # --- VALIDAÇÃO GLOBAL DE DUPLICIDADE ---
             try:
-                # Busca TODOS os prontuários já cadastrados no banco
                 check_res = supabase.table("registros_piedade").select("num_prontuario").execute()
-                todos_prontuarios_banco = [str(x['num_prontuario']) for x in check_res.data if x['num_prontuario']]
+                todos_p = [str(x['num_prontuario']) for x in check_res.data if x['num_prontuario']]
                 
                 for p in st.session_state.lista_prontuarios:
-                    if str(p['pront']) in todos_prontuarios_banco:
-                        st.error(f"❌ O Prontuário {p['pront']} já existe no sistema (pode estar na aba Tratados ou Pendentes). Verifique antes de prosseguir."); st.stop()
-            except Exception as e: st.error(f"Erro ao verificar duplicidade: {e}"); st.stop()
+                    if str(p['pront']) in todos_p:
+                        st.error(f"❌ O Prontuário {p['pront']} já existe no sistema!"); st.stop()
+            except Exception as e: st.error(f"Erro duplicidade: {e}"); st.stop()
 
             if is_novo:
-                if not n_comp or n_id <= 0: st.error("Dados do assistido obrigatórios!"); st.stop()
-                if n_civ == "Casado(a)" and (not n_conj or n_conj_id <= 0): st.error("Dados do cônjuge obrigatórios!"); st.stop()
+                if not n_comp or n_id <= 0: st.error("Nome/Idade obrigatórios!"); st.stop()
+                if n_civ == "Casado(a)" and (not n_conj or n_conj_id <= 0): st.error("Cônjuge obrigatório!"); st.stop()
 
             data_atual = datetime.now().strftime('%d/%m/%Y %H:%M')
             try:
