@@ -67,7 +67,14 @@ else:
 
     # --- VISÃO: LANÇADOS ---
     if st.session_state.cargo == "Lançados":
-        st.title("📋 Painel de Controle")
+        # Cabeçalho com botão de Sincronizar
+        col_tit, col_sync = st.columns([4, 1])
+        col_tit.title("📋 Painel de Controle")
+        if col_sync.button("🔄 Sincronizar", use_container_width=True, help="Clique para carregar novos pedidos"):
+            st.toast("Atualizando dados...")
+            time.sleep(0.5)
+            st.rerun()
+            
         try:
             res = supabase.table("registros_piedade").select("*").order("data_sistema", desc=True).execute()
             dados = res.data
@@ -141,7 +148,6 @@ else:
                 st.divider()
                 tab_p, tab_n, tab_t = st.tabs(["📋 Prontuários", "🆕 Novos Casos", "✅ Histórico"])
 
-                # ... (Restante da lógica de abas permanece igual)
                 with tab_p:
                     for _, item in pronts_pend_df.iterrows():
                         with st.container(border=True):
@@ -186,8 +192,10 @@ else:
                             supabase.table("registros_piedade").delete().eq("tratado", True).execute(); st.rerun()
                         for _, t in tratados.iterrows():
                             st.text(f"✅ {t['nome_completo'] if pd.notna(t['nome_completo']) and t['nome_completo'] != '' else 'Pront. ' + str(t['num_prontuario'])} - {t['data_sistema']}")
+            else:
+                st.info("Não há pedidos pendentes no momento.")
 
-        except Exception as e: st.error(f"Erro: {e}")
+        except Exception as e: st.error(f"Erro ao carregar dados: {e}")
 
     # --- VISÃO: RESERVA (Irmãs da Piedade/Diáconos) ---
     else:
