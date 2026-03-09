@@ -74,7 +74,7 @@ else:
 
     # --- VISÃO: LANÇADOS ---
     if st.session_state.cargo == "Lançados":
-        st.title("📋 Gestão de Pedidos")
+        st.title("📋 Prontuários - Cesta Básica")
         tab_pront, tab_novos, tab_tratados = st.tabs(["📋 Prontuários", "🆕 Novos Cadastros", "✅ Tratados"])
         
         try:
