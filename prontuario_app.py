@@ -249,7 +249,7 @@ else:
 
         if st.button("💾 ENVIAR RESERVA", type="primary", use_container_width=True):
             if not n_sol or not c_sol: st.error("Identifique-se!"); st.stop()
-            data_agora = datetime.now().strftime('%d/%m/%Y %H:%M')
+            data_agora = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
             try:
                 for it in st.session_state.lista_prontuarios:
                     check = supabase.table("registros_piedade").select("id").eq("num_prontuario", str(it['pront'])).eq("tratado", False).execute()
