@@ -74,63 +74,131 @@ else:
             time.sleep(0.5)
             st.rerun()
             
+        Perfeito, removi a linha de "Cestas Pendentes" do bloco de trabalho. Agora o resumo foca exclusivamente na contagem de pessoas/prontuários, mantendo os totais do dia fixos e apenas os contadores "A Lançar" diminuindo conforme o trabalho é feito.
+
+Aqui está o código completo para você copiar:
+
+Python
+import streamlit as st
+from supabase import create_client, Client
+from datetime import datetime
+import pandas as pd
+import numpy as np
+import time
+
+st.set_page_config(page_title="Sistema Piedade", layout="wide", initial_sidebar_state="collapsed")
+
+# --- ESTILIZAÇÃO CSS ---
+st.markdown("""
+    <style>
+    .metric-container { background-color: #ffffff; padding: 15px; border-radius: 12px; border: 1px solid #e1e4e8; box-shadow: 0 2px 4px rgba(0,0,0,0.05); text-align: center; margin-bottom: 10px; }
+    .metric-value { font-size: 1.8rem; font-weight: 800; color: #1E3A8A; }
+    .metric-label { font-size: 0.7rem; font-weight: 600; color: #6B7280; text-transform: uppercase; letter-spacing: 0.5px; }
+    .stTabs [data-baseweb="tab-list"] { gap: 10px; }
+    .stTabs [aria-selected="true"] { background-color: #1E3A8A !important; color: white !important; border-radius: 8px; }
+    .nome-header { font-size: 1.1rem; font-weight: 800; color: #1E3A8A; border-left: 5px solid #1E3A8A; padding-left: 10px; }
+    .label-info { color: #6B7280; font-weight: 700; font-size: 0.8rem; text-transform: uppercase; }
+    .value-info { color: #111827; font-weight: 500; font-size: 0.95rem; }
+    .section-divider { border-top: 1px solid #e5e7eb; margin: 12px 0 8px 0; padding-top: 5px; font-weight: bold; color: #4B5563; font-size: 0.85rem; }
+    .stDownloadButton button { width: 100% !important; border-radius: 8px !important; font-weight: bold !important; }
+    </style>
+    """, unsafe_allow_html=True)
+
+# --- FUNÇÕES CORE ---
+def inicializar_conexao():
+    return create_client(st.secrets["SUPABASE_URL"], st.secrets["SUPABASE_KEY"])
+
+try:
+    supabase: Client = inicializar_conexao()
+except:
+    st.error("Erro de conexão com o banco de dados.")
+    st.stop()
+
+if 'autenticado' not in st.session_state: st.session_state.autenticado = False
+if 'lista_prontuarios' not in st.session_state: st.session_state.lista_prontuarios = []
+if 'form_key' not in st.session_state: st.session_state.form_key = 0
+if 'p_key' not in st.session_state: st.session_state.p_key = 0 
+
+def resetar_formulario():
+    st.session_state.form_key += 1
+    st.session_state.p_key += 1
+    st.session_state.lista_prontuarios = []
+    for key in list(st.session_state.keys()):
+        if any(key.startswith(prefix) for prefix in ["f_", "n_", "c_", "ts_", "inv_"]):
+            st.session_state.pop(key)
+
+# --- LOGIN ---
+if not st.session_state.autenticado:
+    st.title("⛪ Sistema Piedade")
+    with st.container(border=True):
+        cargo_sel = st.selectbox("Acesso:", ["Lançados", "Reserva de Cesta Básica"])
+        senha = st.text_input("Senha:", type="password")
+        if st.button("Entrar", use_container_width=True):
+            if (cargo_sel == "Lançados" and senha == st.secrets.get("SENHA_DIACONO", "diacono123")) or \
+               (cargo_sel == "Reserva de Cesta Básica" and senha == st.secrets.get("SENHA_IRMAS", "piedade123")):
+                st.session_state.autenticado, st.session_state.cargo = True, cargo_sel
+                st.rerun()
+            else: st.error("Senha incorreta.")
+else:
+    c_user, c_space, c_btn = st.columns([2, 3, 1])
+    c_user.markdown(f"**Logado como:** `{st.session_state.cargo}`")
+    if c_btn.button("🚪 Sair", use_container_width=True):
+        st.session_state.autenticado = False
+        st.rerun()
+
+    # --- VISÃO: LANÇADOS ---
+    if st.session_state.cargo == "Lançados":
+        col_tit, col_sync = st.columns([4, 1])
+        col_tit.title("📋 Painel de Controle")
+        if col_sync.button("🔄 Sincronizar", use_container_width=True):
+            st.rerun()
+            
         try:
-            # 1. Busca ÚNICA no banco de dados
             res = supabase.table("registros_piedade").select("*").order("data_sistema", desc=True).execute()
             dados = res.data
             df_all = pd.DataFrame(dados) if dados else pd.DataFrame()
             
             if not df_all.empty:
-                # 2. TRATAMENTO DE TIPOS (Garante números limpos no Excel e na Tela)
+                # TRATAMENTO DE TIPOS (Evita o erro de idade 300)
                 cols_inteiras = ['idade', 'idade_conjuge', 'quantidade_cestas']
                 for col in cols_inteiras:
                     if col in df_all.columns:
                         df_all[col] = pd.to_numeric(df_all[col], errors='coerce').fillna(0).astype(int)
-    
-                # 3. FILTROS (Pendentes vs Lançados)
+
+                # FILTROS DE TRABALHO
                 pendentes_df = df_all[df_all['tratado'] == False].copy()
                 
-                # 4. CÁLCULOS PARA AS MÉTRICAS (Saldo do Dia - FIXO)
+                # CÁLCULOS TOTAIS GERAIS (ESTÁTICOS)
                 total_geral_casos = len(df_all)
                 total_prontuarios_dia = len(df_all[df_all['nome_completo'].isna() | (df_all['nome_completo'] == "")])
                 total_novos_dia = len(df_all[df_all['nome_completo'].notna() & (df_all['nome_completo'] != "")])
                 
-                # 5. CÁLCULOS PARA O QUE FALTA (A LANÇAR - DIMINUI AO CLICAR)
+                # CÁLCULOS A LANÇAR (DINÂMICOS)
                 falta_prontuarios = len(pendentes_df[pendentes_df['nome_completo'].isna() | (pendentes_df['nome_completo'] == "")])
                 falta_novos = len(pendentes_df[pendentes_df['nome_completo'].notna() & (pendentes_df['nome_completo'] != "")])
-    
-                # Dataframes para as abas (apenas pendentes)
+
                 pronts_pend_df = pendentes_df[pendentes_df['nome_completo'].isna() | (pendentes_df['nome_completo'] == "")].copy()
                 novos_pend_df = pendentes_df[pendentes_df['nome_completo'].notna() & (pendentes_df['nome_completo'] != "")].copy()
-    
-                # --- EXIBIÇÃO DAS MÉTRICAS ---
-                st.markdown("##### 📊 Resumo do Dia (Totais Recebidos)")
-                
-                # Linha 1: Totais Gerais do Banco (Não diminuem)
+
+                # --- MÉTRICAS ---
+                st.markdown("##### 📊 Resumo do Dia (Totais)")
                 c1, c2, c3 = st.columns(3)
-                c1.markdown(f"<div class='metric-container'><div class='metric-label'>📝 Total Geral Pedidos</div><div class='metric-value'>{total_geral_casos}</div></div>", unsafe_allow_html=True)
+                c1.markdown(f"<div class='metric-container'><div class='metric-label'>📝 Total Geral</div><div class='metric-value'>{total_geral_casos}</div></div>", unsafe_allow_html=True)
                 c2.markdown(f"<div class='metric-container'><div class='metric-label'>📋 Total Prontuários</div><div class='metric-value'>{total_prontuarios_dia}</div></div>", unsafe_allow_html=True)
-                c3.markdown(f"<div class='metric-container'><div class='metric-label'>🆕 Total Novos Casos</div><div class='metric-value'>{total_novos_dia}</div></div>", unsafe_allow_html=True)
-    
-                # Linha 2: Saldo de Trabalho (Diminuem conforme o Diácono lança)
+                c3.markdown(f"<div class='metric-container'><div class='metric-label'>🆕 Total Novos</div><div class='metric-value'>{total_novos_dia}</div></div>", unsafe_allow_html=True)
+
                 st.markdown("##### ⏳ Trabalho Pendente (A Lançar)")
-                s1, s2, s3 = st.columns(3)
-                # Mostra o total de cestas que ainda precisam ser carregadas/separadas nos pendentes
-                total_cestas_pendentes = int(pendentes_df['quantidade_cestas'].sum())
-                
-                s1.markdown(f"<div class='metric-container'><div class='metric-label'>📦 Cestas Pendentes</div><div class='metric-value' style='color: #E11D48;'>{total_cestas_pendentes}</div></div>", unsafe_allow_html=True)
-                s2.markdown(f"<div class='metric-container'><div class='metric-label'>📋 Prontuários a Lançar</div><div class='metric-value' style='color: #E11D48;'>{falta_prontuarios}</div></div>", unsafe_allow_html=True)
-                s3.markdown(f"<div class='metric-container'><div class='metric-label'>🆕 Novos a Lançar</div><div class='metric-value' style='color: #E11D48;'>{falta_novos}</div></div>", unsafe_allow_html=True)
-    
-                st.markdown("##### 📍 Logística Fixa (Cestas por Local)")
+                s1, s2 = st.columns(2)
+                s1.markdown(f"<div class='metric-container'><div class='metric-label'>📋 Prontuários a Lançar</div><div class='metric-value' style='color: #E11D48;'>{falta_prontuarios}</div></div>", unsafe_allow_html=True)
+                s2.markdown(f"<div class='metric-container'><div class='metric-label'>🆕 Novos a Lançar</div><div class='metric-value' style='color: #E11D48;'>{falta_novos}</div></div>", unsafe_allow_html=True)
+
+                st.markdown("##### 📍 Logística Fixa (Cestas)")
                 m_total, m_ita, m_gua = st.columns(3)
-                total_geral_cestas = int(df_all['quantidade_cestas'].sum())
-                m_total.markdown(f"<div class='metric-container'><div class='metric-label'>📦 Total Absoluto</div><div class='metric-value'>{total_geral_cestas}</div></div>", unsafe_allow_html=True)
+                m_total.markdown(f"<div class='metric-container'><div class='metric-label'>📦 Total Cestas</div><div class='metric-value'>{int(df_all['quantidade_cestas'].sum())}</div></div>", unsafe_allow_html=True)
                 m_ita.markdown(f"<div class='metric-container'><div class='metric-label'>🏠 Itaquera</div><div class='metric-value'>{int(df_all[df_all['local_retirada'] == 'Itaquera']['quantidade_cestas'].sum())}</div></div>", unsafe_allow_html=True)
                 m_gua.markdown(f"<div class='metric-container'><div class='metric-label'>🌳 Pq. Guarani</div><div class='metric-value'>{int(df_all[df_all['local_retirada'] == 'Pq. Guarani']['quantidade_cestas'].sum())}</div></div>", unsafe_allow_html=True)
-    
-                st.write("")
-    
+
+                st.write("")    
                 # --- BOTÕES DE EXPORTAÇÃO ---
                 exp1, exp2 = st.columns(2)
                 with exp1:
