@@ -75,42 +75,60 @@ else:
             st.rerun()
             
         try:
+            # 1. Busca ÚNICA no banco de dados
             res = supabase.table("registros_piedade").select("*").order("data_sistema", desc=True).execute()
             dados = res.data
             df_all = pd.DataFrame(dados) if dados else pd.DataFrame()
-    
+            
             if not df_all.empty:
-                # 1. Filtramos o que é pendente para a listagem e para o cálculo do que "falta"
+                # 2. TRATAMENTO DE TIPOS (Garante números limpos no Excel e na Tela)
+                cols_inteiras = ['idade', 'idade_conjuge', 'quantidade_cestas']
+                for col in cols_inteiras:
+                    if col in df_all.columns:
+                        df_all[col] = pd.to_numeric(df_all[col], errors='coerce').fillna(0).astype(int)
+    
+                # 3. FILTROS (Pendentes vs Lançados)
                 pendentes_df = df_all[df_all['tratado'] == False].copy()
                 
-                # 2. Cálculos para as Métricas Fixas (Total Geral do Dia/Banco)
+                # 4. CÁLCULOS PARA AS MÉTRICAS (Saldo do Dia - FIXO)
                 total_geral_casos = len(df_all)
-                total_geral_cestas = int(df_all['quantidade_cestas'].sum())
+                total_prontuarios_dia = len(df_all[df_all['nome_completo'].isna() | (df_all['nome_completo'] == "")])
+                total_novos_dia = len(df_all[df_all['nome_completo'].notna() & (df_all['nome_completo'] != "")])
                 
-                # 3. Cálculos para o que Falta Lançar (Pendentes)
-                falta_lancar_casos = len(pendentes_df)
-                falta_lancar_cestas = int(pendentes_df['quantidade_cestas'].sum())
-
-                # Separação interna para as abas
+                # 5. CÁLCULOS PARA O QUE FALTA (A LANÇAR - DIMINUI AO CLICAR)
+                falta_prontuarios = len(pendentes_df[pendentes_df['nome_completo'].isna() | (pendentes_df['nome_completo'] == "")])
+                falta_novos = len(pendentes_df[pendentes_df['nome_completo'].notna() & (pendentes_df['nome_completo'] != "")])
+    
+                # Dataframes para as abas (apenas pendentes)
                 pronts_pend_df = pendentes_df[pendentes_df['nome_completo'].isna() | (pendentes_df['nome_completo'] == "")].copy()
                 novos_pend_df = pendentes_df[pendentes_df['nome_completo'].notna() & (pendentes_df['nome_completo'] != "")].copy()
-
-                # --- MÉTRICAS ---
-                st.markdown("##### 📊 Resumo Geral (Saldo do Dia)")
+    
+                # --- EXIBIÇÃO DAS MÉTRICAS ---
+                st.markdown("##### 📊 Resumo do Dia (Totais Recebidos)")
                 
-                # Primeira Linha: Totais Fixos e O que falta
+                # Linha 1: Totais Gerais do Banco (Não diminuem)
                 c1, c2, c3 = st.columns(3)
                 c1.markdown(f"<div class='metric-container'><div class='metric-label'>📝 Total Geral Pedidos</div><div class='metric-value'>{total_geral_casos}</div></div>", unsafe_allow_html=True)
-                c2.markdown(f"<div class='metric-container'><div class='metric-label'>⏳ Casos a Lançar</div><div class='metric-value' style='color: #E11D48;'>{falta_lancar_casos}</div></div>", unsafe_allow_html=True)
-                c3.markdown(f"<div class='metric-container'><div class='metric-label'>📦 Cestas a Lançar</div><div class='metric-value' style='color: #E11D48;'>{falta_lancar_cestas}</div></div>", unsafe_allow_html=True)
-
-                # Segunda Linha: Distribuição por Local (Baseado no Total Geral para conferência logística)
-                st.markdown("##### 📍 Logística Total (Cestas)")
+                c2.markdown(f"<div class='metric-container'><div class='metric-label'>📋 Total Prontuários</div><div class='metric-value'>{total_prontuarios_dia}</div></div>", unsafe_allow_html=True)
+                c3.markdown(f"<div class='metric-container'><div class='metric-label'>🆕 Total Novos Casos</div><div class='metric-value'>{total_novos_dia}</div></div>", unsafe_allow_html=True)
+    
+                # Linha 2: Saldo de Trabalho (Diminuem conforme o Diácono lança)
+                st.markdown("##### ⏳ Trabalho Pendente (A Lançar)")
+                s1, s2, s3 = st.columns(3)
+                # Mostra o total de cestas que ainda precisam ser carregadas/separadas nos pendentes
+                total_cestas_pendentes = int(pendentes_df['quantidade_cestas'].sum())
+                
+                s1.markdown(f"<div class='metric-container'><div class='metric-label'>📦 Cestas Pendentes</div><div class='metric-value' style='color: #E11D48;'>{total_cestas_pendentes}</div></div>", unsafe_allow_html=True)
+                s2.markdown(f"<div class='metric-container'><div class='metric-label'>📋 Prontuários a Lançar</div><div class='metric-value' style='color: #E11D48;'>{falta_prontuarios}</div></div>", unsafe_allow_html=True)
+                s3.markdown(f"<div class='metric-container'><div class='metric-label'>🆕 Novos a Lançar</div><div class='metric-value' style='color: #E11D48;'>{falta_novos}</div></div>", unsafe_allow_html=True)
+    
+                st.markdown("##### 📍 Logística Fixa (Cestas por Local)")
                 m_total, m_ita, m_gua = st.columns(3)
-                m_total.markdown(f"<div class='metric-container'><div class='metric-label'>📦 Total de Cestas</div><div class='metric-value'>{total_geral_cestas}</div></div>", unsafe_allow_html=True)
+                total_geral_cestas = int(df_all['quantidade_cestas'].sum())
+                m_total.markdown(f"<div class='metric-container'><div class='metric-label'>📦 Total Absoluto</div><div class='metric-value'>{total_geral_cestas}</div></div>", unsafe_allow_html=True)
                 m_ita.markdown(f"<div class='metric-container'><div class='metric-label'>🏠 Itaquera</div><div class='metric-value'>{int(df_all[df_all['local_retirada'] == 'Itaquera']['quantidade_cestas'].sum())}</div></div>", unsafe_allow_html=True)
                 m_gua.markdown(f"<div class='metric-container'><div class='metric-label'>🌳 Pq. Guarani</div><div class='metric-value'>{int(df_all[df_all['local_retirada'] == 'Pq. Guarani']['quantidade_cestas'].sum())}</div></div>", unsafe_allow_html=True)
-
+    
                 st.write("")
     
                 # --- BOTÕES DE EXPORTAÇÃO ---
