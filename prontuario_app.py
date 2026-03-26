@@ -91,44 +91,44 @@ else:
                 pronts_pend_df = pendentes_df[pendentes_df['nome_completo'].isna() | (pendentes_df['nome_completo'] == "")].copy()
                 novos_pend_df = pendentes_df[pendentes_df['nome_completo'].notna() & (pendentes_df['nome_completo'] != "")].copy()
 
-               try:
-                    res = supabase.table("registros_piedade").select("*").order("data_sistema", desc=True).execute()
-                    dados = res.data
-                    df_all = pd.DataFrame(dados) if dados else pd.DataFrame()
+                   try:
+                        res = supabase.table("registros_piedade").select("*").order("data_sistema", desc=True).execute()
+                        dados = res.data
+                        df_all = pd.DataFrame(dados) if dados else pd.DataFrame()
+                
+                        if not df_all.empty:
+                            # 1. Filtramos o que é pendente para a listagem e para o cálculo do que "falta"
+                            pendentes_df = df_all[df_all['tratado'] == False].copy()
+                            
+                            # 2. Cálculos para as Métricas Fixas (Total Geral do Dia/Banco)
+                            total_geral_casos = len(df_all)
+                            total_geral_cestas = int(df_all['quantidade_cestas'].sum())
+                            
+                            # 3. Cálculos para o que Falta Lançar (Pendentes)
+                            falta_lancar_casos = len(pendentes_df)
+                            falta_lancar_cestas = int(pendentes_df['quantidade_cestas'].sum())
             
-                    if not df_all.empty:
-                        # 1. Filtramos o que é pendente para a listagem e para o cálculo do que "falta"
-                        pendentes_df = df_all[df_all['tratado'] == False].copy()
-                        
-                        # 2. Cálculos para as Métricas Fixas (Total Geral do Dia/Banco)
-                        total_geral_casos = len(df_all)
-                        total_geral_cestas = int(df_all['quantidade_cestas'].sum())
-                        
-                        # 3. Cálculos para o que Falta Lançar (Pendentes)
-                        falta_lancar_casos = len(pendentes_df)
-                        falta_lancar_cestas = int(pendentes_df['quantidade_cestas'].sum())
-        
-                        # Separação interna para as abas
-                        pronts_pend_df = pendentes_df[pendentes_df['nome_completo'].isna() | (pendentes_df['nome_completo'] == "")].copy()
-                        novos_pend_df = pendentes_df[pendentes_df['nome_completo'].notna() & (pendentes_df['nome_completo'] != "")].copy()
-        
-                        # --- MÉTRICAS ---
-                        st.markdown("##### 📊 Resumo Geral (Saldo do Dia)")
-                        
-                        # Primeira Linha: Totais Fixos e O que falta
-                        c1, c2, c3 = st.columns(3)
-                        c1.markdown(f"<div class='metric-container'><div class='metric-label'>📝 Total Geral Pedidos</div><div class='metric-value'>{total_geral_casos}</div></div>", unsafe_allow_html=True)
-                        c2.markdown(f"<div class='metric-container'><div class='metric-label'>⏳ Casos a Lançar</div><div class='metric-value' style='color: #E11D48;'>{falta_lancar_casos}</div></div>", unsafe_allow_html=True)
-                        c3.markdown(f"<div class='metric-container'><div class='metric-label'>📦 Cestas a Lançar</div><div class='metric-value' style='color: #E11D48;'>{falta_lancar_cestas}</div></div>", unsafe_allow_html=True)
-        
-                        # Segunda Linha: Distribuição por Local (Baseado no Total Geral para conferência logística)
-                        st.markdown("##### 📍 Logística Total (Cestas)")
-                        m_total, m_ita, m_gua = st.columns(3)
-                        m_total.markdown(f"<div class='metric-container'><div class='metric-label'>📦 Total de Cestas</div><div class='metric-value'>{total_geral_cestas}</div></div>", unsafe_allow_html=True)
-                        m_ita.markdown(f"<div class='metric-container'><div class='metric-label'>🏠 Itaquera</div><div class='metric-value'>{int(df_all[df_all['local_retirada'] == 'Itaquera']['quantidade_cestas'].sum())}</div></div>", unsafe_allow_html=True)
-                        m_gua.markdown(f"<div class='metric-container'><div class='metric-label'>🌳 Pq. Guarani</div><div class='metric-value'>{int(df_all[df_all['local_retirada'] == 'Pq. Guarani']['quantidade_cestas'].sum())}</div></div>", unsafe_allow_html=True)
-        
-                        st.write("")
+                            # Separação interna para as abas
+                            pronts_pend_df = pendentes_df[pendentes_df['nome_completo'].isna() | (pendentes_df['nome_completo'] == "")].copy()
+                            novos_pend_df = pendentes_df[pendentes_df['nome_completo'].notna() & (pendentes_df['nome_completo'] != "")].copy()
+            
+                            # --- MÉTRICAS ---
+                            st.markdown("##### 📊 Resumo Geral (Saldo do Dia)")
+                            
+                            # Primeira Linha: Totais Fixos e O que falta
+                            c1, c2, c3 = st.columns(3)
+                            c1.markdown(f"<div class='metric-container'><div class='metric-label'>📝 Total Geral Pedidos</div><div class='metric-value'>{total_geral_casos}</div></div>", unsafe_allow_html=True)
+                            c2.markdown(f"<div class='metric-container'><div class='metric-label'>⏳ Casos a Lançar</div><div class='metric-value' style='color: #E11D48;'>{falta_lancar_casos}</div></div>", unsafe_allow_html=True)
+                            c3.markdown(f"<div class='metric-container'><div class='metric-label'>📦 Cestas a Lançar</div><div class='metric-value' style='color: #E11D48;'>{falta_lancar_cestas}</div></div>", unsafe_allow_html=True)
+            
+                            # Segunda Linha: Distribuição por Local (Baseado no Total Geral para conferência logística)
+                            st.markdown("##### 📍 Logística Total (Cestas)")
+                            m_total, m_ita, m_gua = st.columns(3)
+                            m_total.markdown(f"<div class='metric-container'><div class='metric-label'>📦 Total de Cestas</div><div class='metric-value'>{total_geral_cestas}</div></div>", unsafe_allow_html=True)
+                            m_ita.markdown(f"<div class='metric-container'><div class='metric-label'>🏠 Itaquera</div><div class='metric-value'>{int(df_all[df_all['local_retirada'] == 'Itaquera']['quantidade_cestas'].sum())}</div></div>", unsafe_allow_html=True)
+                            m_gua.markdown(f"<div class='metric-container'><div class='metric-label'>🌳 Pq. Guarani</div><div class='metric-value'>{int(df_all[df_all['local_retirada'] == 'Pq. Guarani']['quantidade_cestas'].sum())}</div></div>", unsafe_allow_html=True)
+            
+                            st.write("")
                 
                 # --- BOTÕES DE EXPORTAÇÃO ---
                 exp1, exp2 = st.columns(2)
