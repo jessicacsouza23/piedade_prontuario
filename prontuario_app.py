@@ -102,7 +102,7 @@ else:
                 novos_pend_df = pendentes_df[pendentes_df['nome_completo'].notna() & (pendentes_df['nome_completo'] != "")].copy()
 
                 # --- MÉTRICAS ---
-                st.markdown("##### 📊 Resumo do Dia (Totais)")
+                st.markdown("##### 📊 Resumo (Totais)")
                 c1, c2, c3 = st.columns(3)
                 c1.markdown(f"<div class='metric-container'><div class='metric-label'>📝 Total Geral</div><div class='metric-value'>{total_geral_casos}</div></div>", unsafe_allow_html=True)
                 c2.markdown(f"<div class='metric-container'><div class='metric-label'>📋 Total Prontuários</div><div class='metric-value'>{total_prontuarios_dia}</div></div>", unsafe_allow_html=True)
