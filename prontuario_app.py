@@ -4,6 +4,7 @@ from datetime import datetime
 import pandas as pd
 import numpy as np
 import time
+import pytz  # Biblioteca para fuso horário
 
 st.set_page_config(page_title="Sistema Piedade", layout="wide", initial_sidebar_state="collapsed")
 
@@ -249,7 +250,9 @@ else:
 
         if st.button("💾 ENVIAR RESERVA", type="primary", use_container_width=True):
             if not n_sol or not c_sol: st.error("Identifique-se!"); st.stop()
-            data_agora = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+            # --- AJUSTE DE FUSO HORÁRIO (SÃO PAULO) ---
+            fuso_br = pytz.timezone('America/Sao_Paulo')
+            data_agora = datetime.now(fuso_br).strftime('%Y-%m-%d %H:%M:%S')
             try:
                 for it in st.session_state.lista_prontuarios:
                     check = supabase.table("registros_piedade").select("id").eq("num_prontuario", str(it['pront'])).eq("tratado", False).execute()
