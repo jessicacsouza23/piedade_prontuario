@@ -122,21 +122,27 @@ else:
 
                 st.write("")    
                 # --- BOTÕES DE EXPORTAÇÃO ---
+               # --- EXPORTAÇÃO (BAIXA TUDO DO BANCO) ---
                 exp1, exp2 = st.columns(2)
                 with exp1:
-                    if not pronts_pend_df.empty:
-                        cols_p = ['data_sistema', 'nome_solicitante', 'tipo_solicitante', 'comum_solicitante','local_retirada', 'num_prontuario', 'quantidade_cestas']
-                        map_p = {'data_sistema': 'Data', 'nome_solicitante': 'Solicitante', 'tipo_solicitante': 'Cargo', 'comum_solicitante': 'Comum Solicitante', 'local_retirada': 'Local Entrega', 'num_prontuario': 'Nº Prontuário', 'quantidade_cestas': 'Qtd Cestas'}
-                        df_p_exp = pronts_pend_df[cols_p].rename(columns=map_p)
+                    # Filtra TODOS que são prontuários (nome vazio)
+                    df_p_all = df_all[df_all['nome_completo'].isna() | (df_all['nome_completo'] == "")].copy()
+                    if not df_p_all.empty:
+                        cols_p = ['data_sistema', 'status_lancamento', 'nome_solicitante', 'tipo_solicitante', 'comum_solicitante','local_retirada', 'num_prontuario', 'quantidade_cestas']
+                        map_p = {'data_sistema': 'Data', 'status_lancamento': 'Status Lançamento', 'nome_solicitante': 'Solicitante', 'tipo_solicitante': 'Cargo', 'comum_solicitante': 'Comum Solicitante', 'local_retirada': 'Local Entrega', 'num_prontuario': 'Nº Prontuário', 'quantidade_cestas': 'Qtd Cestas'}
+                        df_p_exp = df_p_all[cols_p].rename(columns=map_p)
                         csv_p = df_p_exp.to_csv(index=False, sep=';', encoding='utf-8-sig').encode('utf-8-sig')
-                        st.download_button("📥 EXCEL: PRONTUÁRIOS", csv_p, f"prontuarios_{datetime.now().strftime('%d_%m')}.csv", "text/csv", type="primary")
+                        st.download_button("📥 EXCEL: TODOS PRONTUÁRIOS", csv_p, f"todos_prontuarios_{datetime.now().strftime('%d_%m')}.csv", "text/csv", type="primary")
+                
                 with exp2:
-                    if not novos_pend_df.empty:
-                        cols_n = ['data_sistema', 'nome_solicitante', 'tipo_solicitante', 'local_retirada', 'nome_completo', 'idade', 'tempo_batismo', 'estado_civil', 'comum_assistido', 'endereco', 'bairro', 'cep', 'quantidade_cestas', 'nome_conjuge', 'idade_conjuge', 'batismo_conjuge', 'comum_solicitante']
-                        map_n = {'data_sistema': 'Data Pedido', 'nome_solicitante': 'Solicitante', 'tipo_solicitante': 'Cargo Solicitante', 'local_retirada': 'Local Entrega', 'nome_completo': 'Nome Assistido', 'idade': 'Idade', 'tempo_batismo': 'Tempo Batismo', 'estado_civil': 'Estado Civil', 'comum_assistido': 'Comum Assistido', 'endereco': 'Endereço', 'bairro': 'Bairro', 'cep': 'CEP', 'quantidade_cestas': 'Qtd Cestas', 'nome_conjuge': 'Nome Cônjuge', 'idade_conjuge': 'Idade Cônjuge', 'batismo_conjuge': 'Batismo Cônjuge', 'comum_solicitante': 'Comum Solicitante'}
-                        df_n_exp = novos_pend_df[cols_n].rename(columns=map_n)
+                    # Filtra TODOS que são Casos Novos (nome preenchido)
+                    df_n_all = df_all[df_all['nome_completo'].notna() & (df_all['nome_completo'] != "")].copy()
+                    if not df_n_all.empty:
+                        cols_n = ['data_sistema', 'status_lancamento', 'nome_solicitante', 'tipo_solicitante', 'local_retirada', 'nome_completo', 'idade', 'tempo_batismo', 'estado_civil', 'comum_assistido', 'endereco', 'bairro', 'cep', 'quantidade_cestas', 'nome_conjuge', 'idade_conjuge', 'batismo_conjuge', 'comum_solicitante']
+                        map_n = {'data_sistema': 'Data Pedido', 'status_lancamento': 'Status Lançamento', 'nome_solicitante': 'Solicitante', 'tipo_solicitante': 'Cargo Solicitante', 'local_retirada': 'Local Entrega', 'nome_completo': 'Nome Assistido', 'idade': 'Idade', 'tempo_batismo': 'Tempo Batismo', 'estado_civil': 'Estado Civil', 'comum_assistido': 'Comum Assistido', 'endereco': 'Endereço', 'bairro': 'Bairro', 'cep': 'CEP', 'quantidade_cestas': 'Qtd Cestas', 'nome_conjuge': 'Nome Cônjuge', 'idade_conjuge': 'Idade Cônjuge', 'batismo_conjuge': 'Batismo Cônjuge', 'comum_solicitante': 'Comum Solicitante'}
+                        df_n_exp = df_n_all[cols_n].rename(columns=map_n)
                         csv_n = df_n_exp.to_csv(index=False, sep=';', encoding='utf-8-sig').encode('utf-8-sig')
-                        st.download_button("📥 EXCEL: Prontuários NOVOS", csv_n, f"Prontuários_novos_{datetime.now().strftime('%d_%m')}.csv", "text/csv", type="primary")
+                        st.download_button("📥 EXCEL: TODOS CASOS NOVOS", csv_n, f"todos_casos_novos_{datetime.now().strftime('%d_%m')}.csv", "text/csv", type="primary")
 
                 st.divider()
                 tab_p, tab_n, tab_t = st.tabs(["📋 Prontuários", "🆕 Novos Prontuários", "✅ Histórico"])
