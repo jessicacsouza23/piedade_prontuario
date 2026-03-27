@@ -1,6 +1,6 @@
 import streamlit as st
 from supabase import create_client, Client
-from datetime import datetime, timedelta  # Importação correta e completa
+import datetime  # Importado como módulo para evitar erro de conflito
 import pandas as pd
 import numpy as np
 import time
@@ -15,35 +15,32 @@ st.markdown("""
     .metric-container { background-color: #ffffff; padding: 15px; border-radius: 12px; border: 1px solid #e1e4e8; box-shadow: 0 2px 4px rgba(0,0,0,0.05); text-align: center; margin-bottom: 10px; }
     .metric-value { font-size: 1.8rem; font-weight: 800; color: #1E3A8A; }
     .metric-label { font-size: 0.7rem; font-weight: 600; color: #6B7280; text-transform: uppercase; letter-spacing: 0.5px; }
-    .stTabs [data-baseweb="tab-list"] { gap: 10px; }
-    .stTabs [aria-selected="true"] { background-color: #1E3A8A !important; color: white !important; border-radius: 8px; }
     .nome-header { font-size: 1.1rem; font-weight: 800; color: #1E3A8A; border-left: 5px solid #1E3A8A; padding-left: 10px; }
-    .label-info { color: #6B7280; font-weight: 700; font-size: 0.8rem; text-transform: uppercase; }
-    .value-info { color: #111827; font-weight: 500; font-size: 0.95rem; }
     .section-divider { border-top: 1px solid #e5e7eb; margin: 12px 0 8px 0; padding-top: 5px; font-weight: bold; color: #4B5563; font-size: 0.85rem; }
     .stDownloadButton button { width: 100% !important; border-radius: 8px !important; font-weight: bold !important; }
     </style>
     """, unsafe_allow_html=True)
 
-# --- FUNÇÕES CORE ---
+# --- FUNÇÕES CORE E TRAVA DE DATA ---
 def inicializar_conexao():
     return create_client(st.secrets["SUPABASE_URL"], st.secrets["SUPABASE_KEY"])
 
-def verificar_disponibilidade():
-    """Calcula se o sistema de reserva deve estar aberto ou fechado."""
-    fuso_br = pytz.timezone('America/Sao_Paulo')
-    agora = datetime.now(fuso_br)
-    hoje = agora.date()
+def verificar_sistema_aberto():
+    """Lógica: Fecha na quarta (após a terça limite) e reabre no domingo do primeiro sábado."""
+    fuso = pytz.timezone('America/Sao_Paulo')
+    hoje = datetime.datetime.now(fuso).date()
     
     # Encontrar o primeiro sábado do mês atual
-    primeiro_dia_mes = hoje.replace(day=1)
-    dias_para_sabado = (5 - primeiro_dia_mes.weekday() + 7) % 7
-    primeiro_sabado = primeiro_dia_mes + timedelta(days=dias_para_sabado)
+    primeiro_dia = hoje.replace(day=1)
+    # weekday: 0=Seg, 5=Sáb, 6=Dom
+    dias_para_sabado = (5 - primeiro_dia.weekday() + 7) % 7
+    primeiro_sabado = primeiro_dia + datetime.timedelta(days=dias_para_sabado)
     
-    # Terça-feira que antecede o primeiro sábado (4 dias antes)
-    terca_limite = primeiro_sabado - timedelta(days=4)
+    # Terça-feira que antecede esse sábado
+    terca_limite = primeiro_sabado - datetime.timedelta(days=4)
     
-    # Regra de bloqueio
+    # BLOQUEIO: Se for depois da terça E antes do domingo (dia após o sábado)
+    # O sistema reabre no domingo (primeiro_sabado + 1 dia)
     if hoje > terca_limite and hoje <= primeiro_sabado:
         return False, terca_limite, primeiro_sabado
     return True, terca_limite, primeiro_sabado
@@ -54,7 +51,7 @@ except:
     st.error("Erro de conexão com o banco de dados.")
     st.stop()
 
-# Inicialização do Session State
+# --- ESTADOS DA SESSÃO ---
 if 'autenticado' not in st.session_state: st.session_state.autenticado = False
 if 'lista_prontuarios' not in st.session_state: st.session_state.lista_prontuarios = []
 if 'form_key' not in st.session_state: st.session_state.form_key = 0
@@ -65,7 +62,7 @@ def resetar_formulario():
     st.session_state.p_key += 1
     st.session_state.lista_prontuarios = []
     for key in list(st.session_state.keys()):
-        if any(key.startswith(p) for p in ["f_", "n_", "c_", "ts_", "inv_", "np_", "qp_", "nc_", "ca_", "id_", "ba_", "civ_", "nco_", "ico_", "bco_", "en_", "bai_", "cep_", "qn_", "loc_", "ns_", "cs_"]):
+        if any(key.startswith(pre) for pre in ["f_", "n_", "c_", "ts_", "inv_", "np_", "qp_", "ns_", "cs_", "loc_"]):
             st.session_state.pop(key)
 
 # --- LOGIN ---
@@ -81,111 +78,109 @@ if not st.session_state.autenticado:
                 st.rerun()
             else: st.error("Senha incorreta.")
 else:
+    # Header
     c_user, c_space, c_btn = st.columns([2, 3, 1])
     c_user.markdown(f"**Logado como:** `{st.session_state.cargo}`")
     if c_btn.button("🚪 Sair", use_container_width=True):
         st.session_state.autenticado = False
         st.rerun()
 
-    # --- VISÃO: LANÇADOS ---
+    # --- VISÃO: LANÇADOS (DIÁCONOS) ---
     if st.session_state.cargo == "Lançados":
         col_tit, col_sync = st.columns([4, 1])
-        col_tit.title("📋 Painel de Lançamentos")
-        
-        if col_sync.button("🔄 Sincronizar", use_container_width=True):
-            st.rerun()
+        col_tit.title("📋 Painel de Controle")
+        if col_sync.button("🔄 Sincronizar"): st.rerun()
             
         try:
             res = supabase.table("registros_piedade").select("*").order("data_sistema", desc=True).execute()
-            dados = res.data
-            df_all = pd.DataFrame(dados) if dados else pd.DataFrame()
+            df_all = pd.DataFrame(res.data) if res.data else pd.DataFrame()
             
             if not df_all.empty:
                 # Tratamento de dados
-                cols_inteiras = ['idade', 'idade_conjuge', 'quantidade_cestas']
-                for col in cols_inteiras:
-                    if col in df_all.columns:
-                        df_all[col] = pd.to_numeric(df_all[col], errors='coerce').fillna(0).astype(int)
+                df_all['quantidade_cestas'] = pd.to_numeric(df_all['quantidade_cestas'], errors='coerce').fillna(0).astype(int)
+                df_p = df_all[df_all['nome_completo'].isna() | (df_all['nome_completo'] == "")]
+                df_n = df_all[df_all['nome_completo'].notna() & (df_all['nome_completo'] != "")]
+                df_pend = df_all[df_all['tratado'] == False]
 
-                pendentes_df = df_all[df_all['tratado'] == False].copy()
-                
-                # Métricas
-                st.markdown("##### 📊 Resumo e Logística")
-                m1, m2, m3, m4 = st.columns(4)
-                m1.markdown(f"<div class='metric-container'><div class='metric-label'>📦 Total Cestas</div><div class='metric-value'>{int(df_all['quantidade_cestas'].sum())}</div></div>", unsafe_allow_html=True)
-                m2.markdown(f"<div class='metric-container'><div class='metric-label'>⏳ A Lançar</div><div class='metric-value' style='color: #E11D48;'>{len(pendentes_df)}</div></div>", unsafe_allow_html=True)
-                m3.markdown(f"<div class='metric-container'><div class='metric-label'>🏠 Itaquera</div><div class='metric-value'>{int(df_all[df_all['local_retirada'] == 'Itaquera']['quantidade_cestas'].sum())}</div></div>", unsafe_allow_html=True)
-                m4.markdown(f"<div class='metric-container'><div class='metric-label'>🌳 Pq. Guarani</div><div class='metric-value'>{int(df_all[df_all['local_retirada'] == 'Pq. Guarani']['quantidade_cestas'].sum())}</div></div>", unsafe_allow_html=True)
+                # --- MÉTRICAS ---
+                st.markdown("##### 📊 Resumo Geral")
+                r1, r2, r3, r4 = st.columns(4)
+                r1.markdown(f"<div class='metric-container'><div class='metric-label'>📝 Total Geral</div><div class='metric-value'>{len(df_all)}</div></div>", unsafe_allow_html=True)
+                r2.markdown(f"<div class='metric-container'><div class='metric-label'>📋 Prontuários</div><div class='metric-value'>{len(df_p)}</div></div>", unsafe_allow_html=True)
+                r3.markdown(f"<div class='metric-container'><div class='metric-label'>🆕 Novos</div><div class='metric-value'>{len(df_n)}</div></div>", unsafe_allow_html=True)
+                r4.markdown(f"<div class='metric-container'><div class='metric-label'>⏳ A Lançar</div><div class='metric-value' style='color: #E11D48;'>{len(df_pend)}</div></div>", unsafe_allow_html=True)
+
+                st.markdown("##### 📍 Cestas por Local")
+                l1, l2, l3 = st.columns(3)
+                l1.markdown(f"<div class='metric-container'><div class='metric-label'>📦 Total Cestas</div><div class='metric-value'>{int(df_all['quantidade_cestas'].sum())}</div></div>", unsafe_allow_html=True)
+                l2.markdown(f"<div class='metric-container'><div class='metric-label'>🏠 Itaquera</div><div class='metric-value'>{int(df_all[df_all['local_retirada'] == 'Itaquera']['quantidade_cestas'].sum())}</div></div>", unsafe_allow_html=True)
+                l3.markdown(f"<div class='metric-container'><div class='metric-label'>🌳 Pq. Guarani</div><div class='metric-value'>{int(df_all[df_all['local_retirada'] == 'Pq. Guarani']['quantidade_cestas'].sum())}</div></div>", unsafe_allow_html=True)
+
+                # --- EXCEL ---
+                st.markdown("##### 📥 Baixar Relatórios")
+                e1, e2 = st.columns(2)
+                with e1:
+                    if not df_p.empty:
+                        csv_p = df_p.to_csv(index=False, sep=';', encoding='utf-8-sig').encode('utf-8-sig')
+                        st.download_button("📥 EXCEL: TODOS PRONTUÁRIOS", csv_p, "relatorio_prontuarios.csv", "text/csv")
+                with e2:
+                    if not df_n.empty:
+                        csv_n = df_n.to_csv(index=False, sep=';', encoding='utf-8-sig').encode('utf-8-sig')
+                        st.download_button("📥 EXCEL: TODOS NOVOS", csv_n, "relatorio_novos.csv", "text/csv")
 
                 st.divider()
-                tab_p, tab_n, tab_t = st.tabs(["📋 Prontuários", "🆕 Novos", "✅ Histórico"])
-
+                tab_p, tab_n, tab_h = st.tabs(["📋 Prontuários Pendentes", "🆕 Novos Pendentes", "✅ Histórico"])
+                
                 with tab_p:
-                    pronts_pend = pendentes_df[pendentes_df['nome_completo'].isna() | (pendentes_df['nome_completo'] == "")]
-                    for _, item in pronts_pend.iterrows():
+                    for _, row in df_pend[df_pend['nome_completo'].isna() | (df_pend['nome_completo'] == "")].iterrows():
                         with st.container(border=True):
                             c1, c2, c3 = st.columns([3, 2, 1])
-                            c1.markdown(f"<div class='nome-header'>Prontuário: {item['num_prontuario']}</div>", unsafe_allow_html=True)
-                            c1.caption(f"Solicitante: {item['nome_solicitante']} ({item['tipo_solicitante']})")
-                            c2.markdown(f"**📦 {int(item['quantidade_cestas'])} Cesta(s)** | 📍 {item['local_retirada']}")
-                            if c3.button("Marcar Lançado", key=f"lp_{item['id']}", use_container_width=True):
-                                supabase.table("registros_piedade").update({"tratado": True}).eq("id", item['id']).execute(); st.rerun()
+                            c1.markdown(f"<div class='nome-header'>Prontuário: {row['num_prontuario']}</div>", unsafe_allow_html=True)
+                            c1.caption(f"Solicitante: {row['nome_solicitante']}")
+                            c2.write(f"**{row['quantidade_cestas']} un** | {row['local_retirada']}")
+                            if c3.button("Lançar", key=f"p_{row['id']}"):
+                                supabase.table("registros_piedade").update({"tratado": True}).eq("id", row['id']).execute(); st.rerun()
 
                 with tab_n:
-                    novos_pend = pendentes_df[pendentes_df['nome_completo'].notna() & (pendentes_df['nome_completo'] != "")]
-                    for _, item in novos_pend.iterrows():
+                    for _, row in df_pend[df_pend['nome_completo'].notna() & (df_pend['nome_completo'] != "")].iterrows():
                         with st.container(border=True):
-                            st.markdown(f"<div class='nome-header'>👤 {item['nome_completo']}</div>", unsafe_allow_html=True)
-                            col1, col2, col3 = st.columns(3)
-                            col1.markdown(f"<span class='label-info'>Idade</span><br>{int(item['idade'])} anos", unsafe_allow_html=True)
-                            col2.markdown(f"<span class='label-info'>Comum</span><br>{item['comum_assistido']}", unsafe_allow_html=True)
-                            col3.markdown(f"<span class='label-info'>Pedido</span><br>{int(item['quantidade_cestas'])} un / {item['local_retirada']}", unsafe_allow_html=True)
-                            if st.button("Concluir Lançamento", key=f"ln_{item['id']}", type="primary", use_container_width=True):
-                                supabase.table("registros_piedade").update({"tratado": True}).eq("id", item['id']).execute(); st.rerun()
+                            st.markdown(f"<div class='nome-header'>👤 {row['nome_completo']}</div>", unsafe_allow_html=True)
+                            st.write(f"Comum: {row['comum_assistido']} | Qtd: {row['quantidade_cestas']} | Local: {row['local_retirada']}")
+                            if st.button("Lançar Novo", key=f"n_{row['id']}", type="primary"):
+                                supabase.table("registros_piedade").update({"tratado": True}).eq("id", row['id']).execute(); st.rerun()
 
-                with tab_t:
-                    tratados = df_all[df_all['tratado'] == True]
-                    if st.button("🚨 LIMPAR HISTÓRICO"):
-                        supabase.table("registros_piedade").delete().eq("tratado", True).execute(); st.rerun()
-                    for _, t in tratados.head(20).iterrows():
-                        st.text(f"✅ {t['nome_completo'] if pd.notna(t['nome_completo']) and t['nome_completo'] != '' else 'Pront. ' + str(t['num_prontuario'])} - {t['data_sistema']}")
-            else:
-                st.info("Nenhum registro encontrado.")
-        except Exception as e: st.error(f"Erro ao carregar dados: {e}")
+            else: st.info("Banco de dados vazio.")
+        except Exception as e: st.error(f"Erro: {e}")
 
-    # --- VISÃO: RESERVA ---
+    # --- VISÃO: RESERVA (IRMÃS) ---
     else:
-        # VERIFICAÇÃO DE DISPONIBILIDADE
-        aberto, terca, sabado = verificar_disponibilidade()
-        
+        # APLICAÇÃO DA TRAVA
+        aberto, terca, sabado = verificar_sistema_aberto()
         if not aberto:
             st.error("### 🛑 SISTEMA TEMPORARIAMENTE FECHADO")
-            st.warning(f"As reservas para o sábado **{sabado.strftime('%d/%m')}** foram encerradas na última terça-feira ({terca.strftime('%d/%m')}).")
-            st.info("O sistema reabrirá para o próximo mês no domingo logo após a entrega.")
+            st.info(f"As reservas para o sábado {sabado.strftime('%d/%m')} se encerraram na terça-feira ({terca.strftime('%d/%m')}). O sistema reabrirá no domingo.")
             st.stop()
 
-        st.title("📝 Reserva de Cestas")
+        st.title("📝 Nova Reserva")
         f_key = st.session_state.form_key
         
         with st.container(border=True):
-            st.markdown("#### 👤 Identificação do Solicitante")
-            c1, c2, c3 = st.columns([1.5, 1.5, 1.5])
+            st.markdown("#### 👤 Solicitante")
+            c1, c2, c3 = st.columns(3)
             t_sol = c1.radio("Cargo:", ["Diácono", "Irmã da Piedade"], horizontal=True, key=f"ts_{f_key}")
-            n_sol = c2.text_input("Nome do Solicitante:", key=f"ns_{f_key}")
+            n_sol = c2.text_input("Nome:", key=f"ns_{f_key}")
             c_sol = c3.text_input("Comum:", key=f"cs_{f_key}")
 
         st.divider()
-        st.markdown("#### 📋 Prontuários Existentes")
+        st.markdown("#### 📋 Prontuários")
         with st.expander("Adicionar Prontuário", expanded=True):
             cp1, cp2, cp3 = st.columns([2, 1, 1])
-            num_p = cp1.text_input("Número do Prontuário", key=f"np_{st.session_state.p_key}")
-            qtd_p = cp2.number_input("Qtd", min_value=1, step=1, value=1, key=f"qp_{st.session_state.p_key}")
+            num_p = cp1.text_input("Número", key=f"np_{st.session_state.p_key}")
+            qtd_p = cp2.number_input("Qtd", min_value=1, value=1, key=f"qp_{st.session_state.p_key}")
             if cp3.button("➕ Adicionar"):
                 if num_p:
-                    if any(x['pront'] == num_p for x in st.session_state.lista_prontuarios): st.error("Já está na lista.")
-                    else:
-                        st.session_state.lista_prontuarios.append({"id": time.time(), "pront": num_p, "qtd": int(qtd_p)})
-                        st.session_state.p_key += 1; st.rerun()
+                    st.session_state.lista_prontuarios.append({"id": time.time(), "pront": num_p, "qtd": int(qtd_p)})
+                    st.session_state.p_key += 1; st.rerun()
 
         for i, p in enumerate(st.session_state.lista_prontuarios):
             ci, cd = st.columns([9, 1])
@@ -193,53 +188,30 @@ else:
             if cd.button("🗑️", key=f"del_{p['id']}"): st.session_state.lista_prontuarios.pop(i); st.rerun()
 
         st.divider()
-        st.markdown("#### 🆕 Caso Novo")
-        is_novo = st.toggle("Cadastrar pessoa sem prontuário?", key=f"inv_{f_key}")
+        is_novo = st.toggle("Pessoa sem prontuário?", key=f"inv_{f_key}")
         if is_novo:
             with st.container(border=True):
-                n_comp = st.text_input("Nome Completo *:", key=f"nc_{f_key}")
-                c_ast = st.text_input("Comum do Assistido:", key=f"ca_{f_key}")
-                d1, d2, d3 = st.columns(3)
-                n_id = d1.number_input("Idade *:", min_value=0, step=1, key=f"id_{f_key}")
-                n_bat = d2.text_input("Tempo de Batismo:", key=f"ba_{f_key}")
-                n_civ = d3.selectbox("Estado Civil:", ["Solteiro(a)", "Casado(a)", "Viúvo(a)", "Desquitado(a)"], key=f"civ_{f_key}")
-                
-                n_conj, n_conj_id, n_conj_bat = "", 0, ""
-                if n_civ == "Casado(a)":
-                    nj1, nj2, nj3 = st.columns([2, 1, 1])
-                    n_conj = nj1.text_input("Nome Cônjuge *:", key=f"nco_{f_key}")
-                    n_conj_id = nj2.number_input("Idade Cônjuge *:", min_value=0, step=1, key=f"ico_{f_key}")
-                    n_conj_bat = nj3.text_input("Batismo Cônjuge:", key=f"bco_{f_key}")
-                
-                n_end = st.text_input("Endereço:", key=f"en_{f_key}")
-                b1, b2 = st.columns(2)
-                n_bai, n_cep = b1.text_input("Bairro:", key=f"bai_{f_key}"), b2.text_input("CEP:", key=f"cep_{f_key}")
-                q_novo = st.number_input("Qtd de Cestas:", min_value=1, step=1, key=f"qn_{f_key}")
+                n_comp = st.text_input("Nome Assistido:", key=f"nc_{f_key}")
+                c_ast = st.text_input("Comum Assistido:", key=f"ca_{f_key}")
+                q_novo = st.number_input("Qtd Cestas:", min_value=1, value=1, key=f"qn_{f_key}")
 
         loc_ret = st.radio("Local de Retirada:", ["Pq. Guarani", "Itaquera"], horizontal=True, key=f"loc_{f_key}")
 
         if st.button("💾 ENVIAR RESERVA", type="primary", use_container_width=True):
-            if not n_sol or not c_sol: st.error("Identifique-se!"); st.stop()
-            fuso_br = pytz.timezone('America/Sao_Paulo')
-            data_agora = datetime.now(fuso_br).strftime('%Y-%m-%d %H:%M:%S')
-            
+            if not n_sol or not c_sol: st.error("Preencha seu nome e comum!"); st.stop()
+            agora = datetime.datetime.now(pytz.timezone('America/Sao_Paulo')).strftime('%Y-%m-%d %H:%M:%S')
             try:
-                # Loop Prontuários
                 for it in st.session_state.lista_prontuarios:
                     supabase.table("registros_piedade").insert({
-                        "tipo_solicitante": t_sol, "nome_solicitante": n_sol, "comum_solicitante": c_sol, 
-                        "num_prontuario": str(it['pront']), "quantidade_cestas": int(it['qtd']), 
-                        "local_retirada": loc_ret, "data_sistema": data_agora, "tratado": False
+                        "tipo_solicitante": t_sol, "nome_solicitante": n_sol, "comum_solicitante": c_sol,
+                        "num_prontuario": str(it['pront']), "quantidade_cestas": int(it['qtd']),
+                        "local_retirada": loc_ret, "data_sistema": agora, "tratado": False
                     }).execute()
-                # Caso Novo
                 if is_novo:
                     supabase.table("registros_piedade").insert({
-                        "tipo_solicitante": t_sol, "nome_solicitante": n_sol, "comum_solicitante": c_sol, 
-                        "nome_completo": n_comp, "comum_assistido": c_ast, "quantidade_cestas": int(q_novo), 
-                        "idade": int(n_id), "tempo_batismo": n_bat, "estado_civil": n_civ, 
-                        "nome_conjuge": n_conj, "idade_conjuge": int(n_conj_id), "batismo_conjuge": n_conj_bat, 
-                        "endereco": n_end, "bairro": n_bai, "cep": n_cep, "local_retirada": loc_ret, 
-                        "data_sistema": data_agora, "tratado": False
+                        "tipo_solicitante": t_sol, "nome_solicitante": n_sol, "comum_solicitante": c_sol,
+                        "nome_completo": n_comp, "comum_assistido": c_ast, "quantidade_cestas": int(q_novo),
+                        "local_retirada": loc_ret, "data_sistema": agora, "tratado": False
                     }).execute()
-                st.balloons(); st.success("✅ RESERVA ENVIADA!"); time.sleep(1); resetar_formulario(); st.rerun()
+                st.balloons(); st.success("✅ ENVIADO!"); resetar_formulario(); time.sleep(1); st.rerun()
             except Exception as e: st.error(f"Erro: {e}")
