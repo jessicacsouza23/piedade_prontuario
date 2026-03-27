@@ -1,188 +1,125 @@
 import streamlit as st
-from supabase import create_client, Client
-from datetime import datetime, timedelta
 import pandas as pd
-import numpy as np
-import time
-import pytz 
+from datetime import datetime
+import os
 
-# --- FUNÇÃO DA TRAVA AJUSTADA PARA TESTE LOCAL ---
-def verificar_sistema_aberto():
-    # Para testar com a data do seu notebook, usamos datetime.now() SEM o fuso fixo do servidor
-    hoje = datetime.now().date() 
-    
-    # Lógica do primeiro sábado do mês
-    primeiro_dia_mes = hoje.replace(day=1)
-    dias_para_sabado = (5 - primeiro_dia_mes.weekday() + 7) % 7
-    primeiro_sabado = primeiro_dia_mes + timedelta(days=dias_para_sabado)
-    
-    # Terça-feira que antecede esse sábado
-    terca_limite = primeiro_sabado - timedelta(days=4)
-    
-    # BLOQUEIO: Se hoje for quarta (terca+1) até sábado inclusive
-    if hoje > terca_limite and hoje <= primeiro_sabado:
-        return False, terca_limite, primeiro_sabado
-    return True, terca_limite, primeiro_sabado
+# --- CONFIGURAÇÃO E CONSTANTES ---
+NOME_ARQUIVO = "base_pedagogica_orgao.csv"
+DATA_BLOQUEIO = datetime(2026, 4, 1).date()
 
-st.set_page_config(page_title="Sistema Piedade", layout="wide")
+st.set_page_config(page_title="Gestão Pedagógica - Órgão", layout="wide")
 
-# --- ESTILIZAÇÃO CSS ---
-st.markdown("""
-    <style>
-    .metric-container { background-color: #ffffff; padding: 15px; border-radius: 12px; border: 1px solid #e1e4e8; box-shadow: 0 2px 4px rgba(0,0,0,0.05); text-align: center; margin-bottom: 10px; }
-    .metric-value { font-size: 1.8rem; font-weight: 800; color: #1E3A8A; }
-    .metric-label { font-size: 0.7rem; font-weight: 600; color: #6B7280; text-transform: uppercase; letter-spacing: 0.5px; }
-    .nome-header { font-size: 1.1rem; font-weight: 800; color: #1E3A8A; border-left: 5px solid #1E3A8A; padding-left: 10px; }
-    .stDownloadButton button { width: 100% !important; border-radius: 8px !important; font-weight: bold !important; }
-    </style>
-    """, unsafe_allow_html=True)
+# --- FUNÇÕES DE DADOS ---
+def carregar_dados():
+    if os.path.exists(NOME_ARQUIVO):
+        return pd.read_csv(NOME_ARQUIVO)
+    return pd.DataFrame(columns=[
+        "Data Aula", "Horário Registro", "Aluno", "Postura", 
+        "Técnica", "Ritmo", "Teoria", "Resumo Secretaria", 
+        "Metas", "Dicas Banca", "Status"
+    ])
 
-# --- FUNÇÕES CORE ---
-def inicializar_conexao():
-    return create_client(st.secrets["SUPABASE_URL"], st.secrets["SUPABASE_KEY"])
+def salvar_dados(df):
+    df.to_csv(NOME_ARQUIVO, index=False)
 
-try:
-    supabase: Client = inicializar_conexao()
-except:
-    st.error("Erro de conexão com o banco de dados.")
-    st.stop()
+# --- INTERFACE ---
+st.title("🎹 Sistema de Análise Pedagógica")
 
-if 'autenticado' not in st.session_state: st.session_state.autenticado = False
-if 'lista_prontuarios' not in st.session_state: st.session_state.lista_prontuarios = []
-if 'form_key' not in st.session_state: st.session_state.form_key = 0
-if 'p_key' not in st.session_state: st.session_state.p_key = 0 
+# Simulação de Data para seu teste (Remover após validar)
+hoje = st.sidebar.date_input("Simular Data de Hoje", value=datetime.now().date())
 
-def resetar_formulario():
-    st.session_state.form_key += 1
-    st.session_state.p_key += 1
-    st.session_state.lista_prontuarios = []
-    for key in list(st.session_state.keys()):
-        if any(key.startswith(pre) for pre in ["f_", "n_", "c_", "ts_", "inv_", "np_", "qp_", "ns_", "cs_", "loc_"]):
-            st.session_state.pop(key)
+# Verificação de Bloqueio
+esta_bloqueado = hoje >= DATA_BLOQUEIO
 
-# --- LOGIN ---
-if not st.session_state.autenticado:
-    st.title("Sistema Piedade - Reservas de Cesta Básica")
-    with st.container(border=True):
-        cargo_sel = st.selectbox("Acesso:", ["Reserva de Cesta Básica", "Lançados"])
-        senha = st.text_input("Senha:", type="password")
-        if st.button("Entrar", use_container_width=True):
-            if (cargo_sel == "Lançados" and senha == st.secrets.get("SENHA_DIACONO", "diacono@26")) or \
-               (cargo_sel == "Reserva de Cesta Básica" and senha == st.secrets.get("SENHA_IRMAS", "piedade123")):
-                st.session_state.autenticado, st.session_state.cargo = True, cargo_sel
-                st.rerun()
-            else: st.error("Senha incorreta.")
+if esta_bloqueado:
+    st.error(f"🚫 ACESSO RESTRITO: O sistema entrou em modo de bloqueio em {DATA_BLOQUEIO.strftime('%d/%m/%Y')}")
+    st.info("Novos lançamentos estão desabilitados. Consulte a secretaria.")
 else:
-    c_user, c_space, c_btn = st.columns([2, 3, 1])
-    c_user.markdown(f"**Logado como:** `{st.session_state.cargo}`")
-    if c_btn.button("🚪 Sair", use_container_width=True):
-        st.session_state.autenticado = False
-        st.rerun()
+    st.success(f"✅ Sistema Liberado - Data: {hoje.strftime('%d/%m/%Y')}")
 
-    # --- VISÃO: LANÇADOS (DIÁCONOS) ---
-    if st.session_state.cargo == "Lançados":
-        col_tit, col_sync = st.columns([4, 1])
-        col_tit.title("📋 Painel de Controle")
-        if col_sync.button("🔄 Sincronizar"): st.rerun()
-            
-        try:
-            res = supabase.table("registros_piedade").select("*").order("data_sistema", desc=True).execute()
-            df_all = pd.DataFrame(res.data) if res.data else pd.DataFrame()
-            
-            if not df_all.empty:
-                df_all['quantidade_cestas'] = pd.to_numeric(df_all['quantidade_cestas'], errors='coerce').fillna(0).astype(int)
-                df_p = df_all[df_all['nome_completo'].isna() | (df_all['nome_completo'] == "")]
-                df_n = df_all[df_all['nome_completo'].notna() & (df_all['nome_completo'] != "")]
-                df_pend = df_all[df_all['tratado'] == False]
+# Carregar dados existentes
+df_pedagogico = carregar_dados()
 
-                st.markdown("##### 📊 Resumo Geral")
-                r1, r2, r3, r4 = st.columns(4)
-                r1.markdown(f"<div class='metric-container'><div class='metric-label'>📝 Total Geral</div><div class='metric-value'>{len(df_all)}</div></div>", unsafe_allow_html=True)
-                r2.markdown(f"<div class='metric-container'><div class='metric-label'>📋 Prontuários</div><div class='metric-value'>{len(df_p)}</div></div>", unsafe_allow_html=True)
-                r3.markdown(f"<div class='metric-container'><div class='metric-label'>🆕 Novos</div><div class='metric-value'>{len(df_n)}</div></div>", unsafe_allow_html=True)
-                r4.markdown(f"<div class='metric-container'><div class='metric-label'>⏳ A Lançar</div><div class='metric-value' style='color: #E11D48;'>{len(df_pend)}</div></div>", unsafe_allow_html=True)
-
-                st.divider()
-                tab_p, tab_n, tab_h = st.tabs(["📋 Prontuários Pendentes", "🆕 Novos Pendentes", "✅ Histórico"])
-                
-                with tab_p:
-                    for _, row in df_pend[df_pend['nome_completo'].isna() | (df_pend['nome_completo'] == "")].iterrows():
-                        with st.container(border=True):
-                            c1, c2, c3 = st.columns([3, 2, 1])
-                            c1.markdown(f"<div class='nome-header'>Prontuário: {row['num_prontuario']}</div>", unsafe_allow_html=True)
-                            c2.write(f"**{row['quantidade_cestas']} un** | {row['local_retirada']}")
-                            if c3.button("Lançar", key=f"p_{row['id']}"):
-                                supabase.table("registros_piedade").update({"tratado": True}).eq("id", row['id']).execute(); st.rerun()
-
-                with tab_n:
-                    for _, row in df_pend[df_pend['nome_completo'].notna() & (df_pend['nome_completo'] != "")].iterrows():
-                        with st.container(border=True):
-                            st.markdown(f"<div class='nome-header'>👤 {row['nome_completo']}</div>", unsafe_allow_html=True)
-                            st.write(f"Comum: {row['comum_assistido']} | Qtd: {row['quantidade_cestas']} | Local: {row['local_retirada']}")
-                            if st.button("Lançar Novo", key=f"n_{row['id']}", type="primary"):
-                                supabase.table("registros_piedade").update({"tratado": True}).eq("id", row['id']).execute(); st.rerun()
-            else: st.info("Banco de dados vazio.")
-        except Exception as e: st.error(f"Erro: {e}")
-
-    # --- VISÃO: RESERVA (IRMÃS) ---
-    else:
-        aberto, terca, sabado = verificar_sistema_aberto()
-        if not aberto:
-            st.error("### 🛑 SISTEMA TEMPORARIAMENTE FECHADO")
-            st.info(f"As reservas para o sábado {sabado.strftime('%d/%m')} se encerraram na terça-feira ({terca.strftime('%d/%m')}). O sistema reabrirá no domingo.")
-            st.stop()
-
-        st.title("📝 Nova Reserva")
-        f_key = st.session_state.form_key
+# --- FORMULÁRIO DE LANÇAMENTO ---
+with st.expander("📝 Realizar Novo Lançamento Detalhado", expanded=not esta_bloqueado):
+    if esta_bloqueado:
+        st.warning("O formulário de envio está desativado devido ao bloqueio de data.")
+    
+    with st.form("form_analise", clear_on_submit=True):
+        col1, col2 = st.columns(2)
+        with col1:
+            aluno = st.text_input("Nome Completo do Aluno")
+            data_aula = st.date_input("Data da Aula", value=hoje)
         
-        with st.container(border=True):
-            st.markdown("#### 👤 Solicitante")
-            c1, c2, c3 = st.columns(3)
-            t_sol = c1.radio("Cargo:", ["Diácono", "Irmã da Piedade"], horizontal=True, key=f"ts_{f_key}")
-            n_sol = c2.text_input("Nome:", key=f"ns_{f_key}")
-            c_sol = c3.text_input("Comum:", key=f"cs_{f_key}")
+        st.markdown("### 🔍 Avaliação Técnica")
+        c1, c2, c3, c4 = st.columns(4)
+        postura = c1.text_area("Postura (Mãos, Pés, Coluna)")
+        tecnica = c2.text_area("Técnica (Dedilhado, Articulação)")
+        ritmo = c3.text_area("Ritmo (Metrônomo, Divisão)")
+        teoria = c4.text_area("Teoria (Solfejo, Conteúdo)")
 
-        st.divider()
-        st.markdown("#### 📋 Prontuários")
-        with st.expander("Adicionar Prontuário", expanded=True):
-            cp1, cp2, cp3 = st.columns([2, 1, 1])
-            num_p = cp1.text_input("Número", key=f"np_{st.session_state.p_key}")
-            qtd_p = cp2.number_input("Qtd", min_value=1, value=1, key=f"qp_{st.session_state.p_key}")
-            if cp3.button("➕ Adicionar"):
-                if num_p:
-                    st.session_state.lista_prontuarios.append({"id": time.time(), "pront": num_p, "qtd": int(qtd_p)})
-                    st.session_state.p_key += 1; st.rerun()
+        st.markdown("### 📋 Administrativo e Metas")
+        resumo_sec = st.text_area("Resumo para Secretaria (Faltas, Livros, Progresso)")
+        metas = st.text_area("Metas e Lições para a Próxima Aula")
+        dicas_banca = st.text_area("Dicas Específicas para a Banca Semestral")
 
-        for i, p in enumerate(st.session_state.lista_prontuarios):
-            ci, cd = st.columns([9, 1])
-            ci.info(f"Nº {p['pront']} — {p['qtd']} cesta(s)")
-            if cd.button("🗑️", key=f"del_{p['id']}"): st.session_state.lista_prontuarios.pop(i); st.rerun()
+        btn_salvar = st.form_submit_button("CONGELAR ANÁLISE", disabled=esta_bloqueado)
 
-        st.divider()
-        is_novo = st.toggle("Pessoa sem prontuário?", key=f"inv_{f_key}")
-        if is_novo:
-            with st.container(border=True):
-                n_comp = st.text_input("Nome Assistido:", key=f"nc_{f_key}")
-                c_ast = st.text_input("Comum Assistido:", key=f"ca_{f_key}")
-                q_novo = st.number_input("Qtd Cestas:", min_value=1, value=1, key=f"qn_{f_key}")
+        if btn_salvar:
+            if not aluno:
+                st.warning("Por favor, preencha o nome do aluno.")
+            else:
+                agora = datetime.now().strftime("%H:%M:%S")
+                novo_registro = {
+                    "Data Aula": data_aula,
+                    "Horário Registro": agora,
+                    "Aluno": aluno,
+                    "Postura": postura,
+                    "Técnica": tecnica,
+                    "Ritmo": ritmo,
+                    "Teoria": teoria,
+                    "Resumo Secretaria": resumo_sec,
+                    "Metas": metas,
+                    "Dicas Banca": dicas_banca,
+                    "Status": "Lançado com Sucesso"
+                }
+                
+                df_pedagogico = pd.concat([df_pedagogico, pd.DataFrame([novo_registro])], ignore_index=True)
+                salvar_dados(df_pedagogico)
+                st.balloons()
+                st.success(f"Análise salva às {agora} e gravada no banco de dados!")
 
-        loc_ret = st.radio("Local de Retirada:", ["Pq. Guarani", "Itaquera"], horizontal=True, key=f"loc_{f_key}")
+# --- RELATÓRIO DE CONSULTA ---
+st.divider()
+st.header("📊 Histórico e Relatórios")
 
-        if st.button("💾 ENVIAR RESERVA", type="primary", use_container_width=True):
-            if not n_sol or not c_sol: st.error("Preencha seu nome e comum!"); st.stop()
-            agora = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
-            try:
-                for it in st.session_state.lista_prontuarios:
-                    supabase.table("registros_piedade").insert({
-                        "tipo_solicitante": t_sol, "nome_solicitante": n_sol, "comum_solicitante": c_sol,
-                        "num_prontuario": str(it['pront']), "quantidade_cestas": int(it['qtd']),
-                        "local_retirada": loc_ret, "data_sistema": agora, "tratado": False
-                    }).execute()
-                if is_novo:
-                    supabase.table("registros_piedade").insert({
-                        "tipo_solicitante": t_sol, "nome_solicitante": n_sol, "comum_solicitante": c_sol,
-                        "nome_completo": n_comp, "comum_assistido": c_ast, "quantidade_cestas": int(q_novo),
-                        "local_retirada": loc_ret, "data_sistema": agora, "tratado": False
-                    }).execute()
-                st.balloons(); st.success("✅ ENVIADO!"); resetar_formulario(); time.sleep(1); st.rerun()
-            except Exception as e: st.error(f"Erro: {e}")
+if not df_pedagogico.empty:
+    # Barra de busca rápida
+    busca = st.text_input("Filtrar por nome do aluno ou data...")
+    df_filtrado = df_pedagogico.copy()
+    
+    if busca:
+        mask = df_filtrado.apply(lambda x: x.astype(str).str.contains(busca, case=False)).any(axis=1)
+        df_filtrado = df_filtrado[mask]
+
+    # Exibição da Tabela
+    st.dataframe(
+        df_filtrado,
+        column_order=(
+            "Data Aula", "Horário Registro", "Status", "Aluno", 
+            "Postura", "Técnica", "Ritmo", "Teoria", "Metas", "Dicas Banca"
+        ),
+        use_container_width=True,
+        hide_index=True
+    )
+    
+    # Exportação
+    csv_data = df_filtrado.to_csv(index=False).encode('utf-8')
+    st.download_button(
+        label="📥 Baixar Relatório para Excel/CSV",
+        data=csv_data,
+        file_name=f"relatorio_pedagogico_{hoje}.csv",
+        mime="text/csv"
+    )
+else:
+    st.info("Nenhum dado registrado até o momento.")
