@@ -84,12 +84,12 @@ def resetar_formulario():
 
 # --- LOGIN ---
 if not st.session_state.autenticado:
-    st.title("Sistema Piedade")
+    st.title("Sistema Piedade - Reservas de Cesta Básica")
     with st.container(border=True):
-        cargo_sel = st.selectbox("Acesso:", ["Lançados", "Reserva de Cesta Básica"])
+        cargo_sel = st.selectbox("Acesso:", ["Reserva de Cesta Básica", "Lançados"])
         senha = st.text_input("Senha:", type="password")
         if st.button("Entrar", use_container_width=True):
-            if (cargo_sel == "Lançados" and senha == st.secrets.get("SENHA_DIACONO", "diacono123")) or \
+            if (cargo_sel == "Lançados" and senha == st.secrets.get("SENHA_DIACONO", "diacono@26")) or \
                (cargo_sel == "Reserva de Cesta Básica" and senha == st.secrets.get("SENHA_IRMAS", "piedade123")):
                 st.session_state.autenticado, st.session_state.cargo = True, cargo_sel
                 st.rerun()
@@ -149,7 +149,7 @@ else:
                 s1.markdown(f"<div class='metric-container'><div class='metric-label'>📋 Prontuários a Lançar</div><div class='metric-value' style='color: #E11D48;'>{falta_prontuarios}</div></div>", unsafe_allow_html=True)
                 s2.markdown(f"<div class='metric-container'><div class='metric-label'>🆕 Novos a Lançar</div><div class='metric-value' style='color: #E11D48;'>{falta_novos}</div></div>", unsafe_allow_html=True)
 
-                st.markdown("##### 📍 Logística Fixa (Cestas)")
+                st.markdown("##### 📍 Logística (Cestas)")
                 m_total, m_ita, m_gua = st.columns(3)
                 m_total.markdown(f"<div class='metric-container'><div class='metric-label'>📦 Total Cestas</div><div class='metric-value'>{int(df_all['quantidade_cestas'].sum())}</div></div>", unsafe_allow_html=True)
                 m_ita.markdown(f"<div class='metric-container'><div class='metric-label'>🏠 Itaquera</div><div class='metric-value'>{int(df_all[df_all['local_retirada'] == 'Itaquera']['quantidade_cestas'].sum())}</div></div>", unsafe_allow_html=True)
