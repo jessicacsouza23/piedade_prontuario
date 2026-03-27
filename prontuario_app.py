@@ -41,7 +41,7 @@ try:
 except KeyError as e:
     print(f"Falha ao localizar a chave: {e}")
     
-st.set_page_config(page_title="Sistema Piedade", layout="wide", initial_sidebar_state="collapsed")
+st.set_page_config(page_title="Sistema Piedade", layout="wide")
 
 # --- ESTILIZAÇÃO CSS ---
 st.markdown("""
@@ -84,7 +84,7 @@ def resetar_formulario():
 
 # --- LOGIN ---
 if not st.session_state.autenticado:
-    st.title("⛪ Sistema Piedade")
+    st.title("Sistema Piedade")
     with st.container(border=True):
         cargo_sel = st.selectbox("Acesso:", ["Lançados", "Reserva de Cesta Básica"])
         senha = st.text_input("Senha:", type="password")
