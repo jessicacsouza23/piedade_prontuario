@@ -5,7 +5,42 @@ import pandas as pd
 import numpy as np
 import time
 import pytz  # Biblioteca para fuso horário
+import pandas as pd
 
+# 1. Verificação de segurança antes de manipular a coluna
+def processar_dados(df):
+    # Padronização: Remove espaços extras e garante que o nome está correto
+    df.columns = df.columns.str.strip()
+    
+    coluna_alvo = 'status_lancamento'
+    
+    if coluna_alvo in df.columns:
+        # Exemplo de operação: Filtragem ou Transformação
+        # df = df[df[coluna_alvo] == 'Pago'] 
+        print(f"Coluna '{coluna_alvo}' encontrada e pronta para processamento.")
+    else:
+        print(f"Erro: A coluna '{coluna_alvo}' não foi encontrada.")
+        print(f"Colunas disponíveis: {df.columns.tolist()}")
+        # Opcional: Criar a coluna com valor padrão caso ela falte
+        # df[coluna_alvo] = 'pendente'
+        
+    return df
+
+# Exemplo de uso prático para evitar o erro de Index
+try:
+    # Simulando a carga de um DataFrame
+    # df = pd.read_csv('seu_arquivo.csv')
+    
+    # Se você estiver tentando dar um .drop(), use 'errors=ignore'
+    # df = df.drop(columns=['status_lancamento'], errors='ignore')
+    
+    # Se estiver acessando para análise:
+    # analise = df['status_lancamento'].value_counts()
+    
+    pass
+except KeyError as e:
+    print(f"Falha ao localizar a chave: {e}")
+    
 st.set_page_config(page_title="Sistema Piedade", layout="wide", initial_sidebar_state="collapsed")
 
 # --- ESTILIZAÇÃO CSS ---
