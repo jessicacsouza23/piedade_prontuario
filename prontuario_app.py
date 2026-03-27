@@ -238,6 +238,47 @@ else:
 
     # --- VISÃO: RESERVA ---
     else:
+        def verificar_disponibilidade():
+            # Configura fuso horário
+            fuso_br = pytz.timezone('America/Sao_Paulo')
+            agora = datetime.now(fuso_br)
+            hoje = agora.date()
+            
+            # --- Lógica para encontrar o Primeiro Sábado do Mês Atual ---
+            primeiro_dia_mes = hoje.replace(day=1)
+            # weekday() retorna 5 para Sábado
+            dias_para_sabado = (5 - primeiro_dia_mes.weekday() + 7) % 7
+            primeiro_sabado = primeiro_dia_mes + timedelta(days=dias_para_sabado)
+            
+            # Terça-feira que antecede o primeiro sábado (4 dias antes)
+            terca_limite = primeiro_sabado - timedelta(days=4)
+            
+            # --- Verificação ---
+            # Se hoje for depois da terça-feira limite, o sistema fecha para este mês
+            if hoje > terca_limite:
+                # Só libera se já estivermos após o primeiro sábado (preparando para o próximo mês)
+                if hoje <= primeiro_sabado:
+                    return False, terca_limite, primeiro_sabado
+                else:
+                    return True, None, None
+            else:
+                return True, None, None
+        
+        # --- Aplicação no Streamlit ---
+        disponivel, data_limite, sabado_entrega = verificar_disponibilidade()
+        
+        if st.session_state.cargo == "Reserva de Cesta Básica":
+            if not disponivel:
+                st.error(f"⚠️ **SISTEMA FECHADO PARA NOVAS RESERVAS**")
+                st.info(f"O prazo para este mês encerrou na terça-feira ({data_limite.strftime('%d/%m')}). "
+                        f"A entrega ocorrerá no sábado, dia {sabado_entrega.strftime('%d/%m')}. "
+                        "O sistema reabrirá para o próximo mês no domingo.")
+                st.stop() # Interrompe a renderização do formulário
+            else:
+                # Se estiver disponível, segue o código normal do formulário...
+                st.title("📝 Reserva de Cestas")
+                # [Resto do seu código de reserva aqui]
+                
         st.title("📝 Reserva de Cestas")
         f_key, p_key = st.session_state.form_key, st.session_state.p_key
         with st.container(border=True):
