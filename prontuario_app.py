@@ -122,10 +122,8 @@ else:
 
                 st.write("")    
                 # --- BOTÕES DE EXPORTAÇÃO ---
-               # --- EXPORTAÇÃO (BAIXA TUDO DO BANCO) ---
                 exp1, exp2 = st.columns(2)
                 with exp1:
-                    # Filtra TODOS que são prontuários (nome vazio)
                     df_p_all = df_all[df_all['nome_completo'].isna() | (df_all['nome_completo'] == "")].copy()
                     if not df_p_all.empty:
                         cols_p = ['data_sistema', 'status_lancamento', 'nome_solicitante', 'tipo_solicitante', 'comum_solicitante','local_retirada', 'num_prontuario', 'quantidade_cestas']
@@ -135,7 +133,6 @@ else:
                         st.download_button("📥 EXCEL: TODOS PRONTUÁRIOS", csv_p, f"todos_prontuarios_{datetime.now().strftime('%d_%m')}.csv", "text/csv", type="primary")
                 
                 with exp2:
-                    # Filtra TODOS que são Casos Novos (nome preenchido)
                     df_n_all = df_all[df_all['nome_completo'].notna() & (df_all['nome_completo'] != "")].copy()
                     if not df_n_all.empty:
                         cols_n = ['data_sistema', 'status_lancamento', 'nome_solicitante', 'tipo_solicitante', 'local_retirada', 'nome_completo', 'idade', 'tempo_batismo', 'estado_civil', 'comum_assistido', 'endereco', 'bairro', 'cep', 'quantidade_cestas', 'nome_conjuge', 'idade_conjuge', 'batismo_conjuge', 'comum_solicitante']
