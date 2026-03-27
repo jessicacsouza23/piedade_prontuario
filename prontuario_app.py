@@ -243,6 +243,7 @@ else:
             fuso_br = pytz.timezone('America/Sao_Paulo')
             agora = datetime.now(fuso_br)
             hoje = agora.date()
+            from datetime import datetime, timedelta
             
             # --- Lógica para encontrar o Primeiro Sábado do Mês Atual ---
             primeiro_dia_mes = hoje.replace(day=1)
