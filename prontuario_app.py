@@ -159,7 +159,7 @@ else:
                         with st.container(border=True):
                             c1, c2, c3 = st.columns([3, 2, 1])
                             c1.markdown(f"<div class='nome-header'>Prontuário: {item['num_prontuario']}</div>", unsafe_allow_html=True)
-                            c1.caption(f"📅 {item['data_sistema']} | Solicitante: {item['nome_solicitante']} ({item['tipo_solicitante']})")
+                            c1.caption(f"📅 {item['data_sistema']} | Solicitante: {item['nome_solicitante']} ({item['tipo_solicitante']} - {item['comum_solicitante']})")
                             c2.markdown(f"**📦 {int(item['quantidade_cestas'])} Cesta(s)** | 📍 {item['local_retirada']}")
                             if c3.button("Marcar Lançado", key=f"lp_{item['id']}", use_container_width=True):
                                 supabase.table("registros_piedade").update({"tratado": True}).eq("id", item['id']).execute(); st.rerun()
@@ -214,7 +214,7 @@ else:
         aberto, t_limite, p_sabado = verificar_sistema_aberto()
         if not aberto:
             st.error("### 🛑 SISTEMA DE RESERVAS FECHADO")
-            st.info(f"As reservas para o sábado {p_sabado.strftime('%d/%m')} se encerraram na terça-feira ({t_limite.strftime('%d/%m')}). O sistema reabrirá no domingo.")
+            st.info(f"As reservas para o sábado {p_sabado.strftime('%d/%m')} se encerraram na terça-feira ({t_limite.strftime('%d/%m')}). Favor entrar em contato com a irmã Cal. O sistema reabrirá no domingo. ")
             st.stop()
 
         st.title("📝 Reserva de Cestas")
