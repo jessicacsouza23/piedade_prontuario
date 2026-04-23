@@ -230,14 +230,19 @@ else:
         st.markdown("#### 📋 Prontuários Existentes")
         with st.expander("Adicionar Prontuário", expanded=True):
             cp1, cp2, cp3 = st.columns([2, 1, 1])
-            num_p = cp1.text_input("Número do Prontuário", key=f"np_{p_key}")
+            num_p = cp1.text_input("Número do Prontuário", key=f"np_{p_key}", max_chars=6)
             qtd_p = cp2.number_input("Qtd", min_value=1, step=1, value=1, key=f"qp_{p_key}")
             if cp3.button("➕ Adicionar"):
                 if num_p:
-                    if any(x['pront'] == num_p for x in st.session_state.lista_prontuarios): st.error("Já está na lista.")
+                    # LÓGICA DE VALIDAÇÃO: Verifica se é numérico
+                    if not num_p.isdigit():
+                        st.error("O prontuário deve conter apenas números.")
+                    elif any(x['pront'] == num_p for x in st.session_state.lista_prontuarios):
+                        st.error("Já está na lista.")
                     else:
                         st.session_state.lista_prontuarios.append({"id": time.time(), "pront": num_p, "qtd": int(qtd_p)})
-                        st.session_state.p_key += 1; st.rerun()
+                        st.session_state.p_key += 1
+                        st.rerun()
 
         for i, p in enumerate(st.session_state.lista_prontuarios):
             ci, cd = st.columns([9, 1])
