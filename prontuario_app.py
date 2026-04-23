@@ -234,15 +234,17 @@ else:
             qtd_p = cp2.number_input("Qtd", min_value=1, step=1, value=1, key=f"qp_{p_key}")
             if cp3.button("➕ Adicionar"):
                 if num_p:
-                    # LÓGICA DE VALIDAÇÃO: Verifica se é numérico
+                    # NOVA VALIDAÇÃO: Verifica se o que foi digitado é apenas número
                     if not num_p.isdigit():
-                        st.error("O prontuário deve conter apenas números.")
+                        st.error("⚠️ O prontuário deve conter APENAS NÚMEROS.")
                     elif any(x['pront'] == num_p for x in st.session_state.lista_prontuarios):
-                        st.error("Já está na lista.")
+                        st.error("🚨 Este número já está na lista abaixo.")
                     else:
                         st.session_state.lista_prontuarios.append({"id": time.time(), "pront": num_p, "qtd": int(qtd_p)})
                         st.session_state.p_key += 1
                         st.rerun()
+                else:
+                    st.warning("Digite um número antes de adicionar.")    
 
         for i, p in enumerate(st.session_state.lista_prontuarios):
             ci, cd = st.columns([9, 1])
