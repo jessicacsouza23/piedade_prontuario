@@ -276,15 +276,61 @@ else:
         loc_ret = st.radio("Local de Retirada:", ["Pq. Guarani", "Itaquera"], horizontal=True, key=f"loc_{f_key}")
 
         if st.button("💾 ENVIAR RESERVA", type="primary", use_container_width=True):
-            if not n_sol or not c_sol: st.error("Identifique-se!"); st.stop()
+            # 1. VALIDAÇÃO DE IDENTIFICAÇÃO
+            if not n_sol or not c_sol:
+                st.error("⚠️ Identifique-se preenchendo o Nome e a Comum!")
+                st.stop()
+            
+            # 2. VALIDAÇÃO DE CONTEÚDO (O que você pediu)
+            # Verifica se a lista de prontuários está vazia E se o toggle de "Caso Novo" está desligado
+            if not st.session_state.lista_prontuarios and not is_novo:
+                st.warning("⚠️ Nenhuma reserva detectada! Adicione um **Número de Prontuário** ou ative a opção **Caso Novo** antes de enviar.")
+                st.stop()
+            
+            # 3. VALIDAÇÃO ESPECÍFICA PARA CASO NOVO
+            if is_novo and not n_comp:
+                st.error("⚠️ Você selecionou 'Caso Novo', mas não preencheu o nome do assistido.")
+                st.stop()
+
+            # --- SE PASSAR PELAS TRAVAS, EXECUTA O ENVIO ---
             fuso_br = pytz.timezone('America/Sao_Paulo')
             data_agora = datetime.now(fuso_br).strftime('%Y-%m-%d %H:%M:%S')
+            
             try:
+                # Processa Prontuários
                 for it in st.session_state.lista_prontuarios:
                     check = supabase.table("registros_piedade").select("id").eq("num_prontuario", str(it['pront'])).eq("tratado", False).execute()
-                    if check.data: st.error(f"🚨 Prontuário {it['pront']} já pendente!"); st.stop()
-                    supabase.table("registros_piedade").insert({"tipo_solicitante": t_sol, "nome_solicitante": n_sol, "comum_solicitante": c_sol, "num_prontuario": str(it['pront']), "quantidade_cestas": int(it['qtd']), "local_retirada": loc_ret, "data_sistema": data_agora, "tratado": False}).execute()
+                    if check.data: 
+                        st.error(f"🚨 Prontuário {it['pront']} já possui uma reserva pendente!")
+                        st.stop()
+                    
+                    supabase.table("registros_piedade").insert({
+                        "tipo_solicitante": t_sol, 
+                        "nome_solicitante": n_sol, 
+                        "comum_solicitante": c_sol, 
+                        "num_prontuario": str(it['pront']), 
+                        "quantidade_cestas": int(it['qtd']), 
+                        "local_retirada": loc_ret, 
+                        "data_sistema": data_agora, 
+                        "tratado": False
+                    }).execute()
+                
+                # Processa Caso Novo
                 if is_novo:
-                    supabase.table("registros_piedade").insert({"tipo_solicitante": t_sol, "nome_solicitante": n_sol, "comum_solicitante": c_sol, "nome_completo": n_comp, "comum_assistido": c_ast, "quantidade_cestas": int(q_novo), "idade": int(n_id), "tempo_batismo": n_bat, "estado_civil": n_civ, "nome_conjuge": n_conj, "idade_conjuge": int(n_conj_id), "batismo_conjuge": n_conj_bat, "endereco": n_end, "bairro": n_bai, "cep": n_cep, "local_retirada": loc_ret, "data_sistema": data_agora, "tratado": False}).execute()
-                st.balloons(); st.success("✅ ENVIADO!"); time.sleep(1); resetar_formulario(); st.rerun()
-            except Exception as e: st.error(f"Erro: {e}")
+                    supabase.table("registros_piedade").insert({
+                        "tipo_solicitante": t_sol, "nome_solicitante": n_sol, "comum_solicitante": c_sol, 
+                        "nome_completo": n_comp, "comum_assistido": c_ast, "quantidade_cestas": int(q_novo), 
+                        "idade": int(n_id), "tempo_batismo": n_bat, "estado_civil": n_civ, 
+                        "nome_conjuge": n_conj, "idade_conjuge": int(n_conj_id), "batismo_conjuge": n_conj_bat, 
+                        "endereco": n_end, "bairro": n_bai, "cep": n_cep, "local_retirada": loc_ret, 
+                        "data_sistema": data_agora, "tratado": False
+                    }).execute()
+                
+                st.balloons()
+                st.success("✅ RESERVA REALIZADA COM SUCESSO!")
+                time.sleep(1)
+                resetar_formulario()
+                st.rerun()
+                
+            except Exception as e: 
+                st.error(f"Erro ao salvar no banco de dados: {e}")
