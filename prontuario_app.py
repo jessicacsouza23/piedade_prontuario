@@ -273,7 +273,18 @@ else:
                 n_bai, n_cep = b1.text_input("Bairro:", key=f"bai_{f_key}"), b2.text_input("CEP:", key=f"cep_{f_key}")
                 q_novo = st.number_input("Qtd de Cestas:", min_value=1, step=1, key=f"qn_{f_key}")
 
-        loc_ret = st.radio("Local de Retirada:", ["Pq. Guarani", "Itaquera"], horizontal=True, key=f"loc_{f_key}")
+        # --- CAMPO DE RETIRADA COM SELEÇÃO OBRIGATÓRIA ---
+        st.markdown("#### 📍 Local de Retirada")
+        # Adicionamos "Selecione..." como primeira opção
+        opcoes_retirada = ["Selecione...", "Pq. Guarani", "Itaquera"]
+        loc_ret = st.radio(
+            "Escolha onde a cesta será retirada:", 
+            opcoes_retirada, 
+            horizontal=True, 
+            key=f"loc_{f_key}"
+        )
+
+        st.divider()
 
         if st.button("💾 ENVIAR RESERVA", type="primary", use_container_width=True):
             # 1. VALIDAÇÃO DE IDENTIFICAÇÃO
@@ -281,13 +292,17 @@ else:
                 st.error("⚠️ Identifique-se preenchendo o Nome e a Comum!")
                 st.stop()
             
-            # 2. VALIDAÇÃO DE CONTEÚDO (O que você pediu)
-            # Verifica se a lista de prontuários está vazia E se o toggle de "Caso Novo" está desligado
+            # 2. VALIDAÇÃO DE CONTEÚDO (Prontuário ou Caso Novo)
             if not st.session_state.lista_prontuarios and not is_novo:
-                st.warning("⚠️ Nenhuma reserva detectada! Adicione um **Número de Prontuário** ou ative a opção **Caso Novo** antes de enviar.")
+                st.warning("⚠️ Nenhuma reserva detectada! Adicione um Prontuário ou ative 'Caso Novo'.")
+                st.stop()
+
+            # 3. NOVA VALIDAÇÃO: LOCAL DE RETIRADA OBRIGATÓRIO
+            if loc_ret == "Selecione...":
+                st.error("⚠️ Você precisa selecionar o **Local de Retirada** (Guarani ou Itaquera)!")
                 st.stop()
             
-            # 3. VALIDAÇÃO ESPECÍFICA PARA CASO NOVO
+            # 4. VALIDAÇÃO ESPECÍFICA PARA CASO NOVO
             if is_novo and not n_comp:
                 st.error("⚠️ Você selecionou 'Caso Novo', mas não preencheu o nome do assistido.")
                 st.stop()
@@ -310,7 +325,7 @@ else:
                         "comum_solicitante": c_sol, 
                         "num_prontuario": str(it['pront']), 
                         "quantidade_cestas": int(it['qtd']), 
-                        "local_retirada": loc_ret, 
+                        "local_retirada": loc_ret, # Aqui vai salvar "Pq. Guarani" ou "Itaquera"
                         "data_sistema": data_agora, 
                         "tratado": False
                     }).execute()
