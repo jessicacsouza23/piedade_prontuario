@@ -276,7 +276,7 @@ else:
         # --- CAMPO DE RETIRADA COM SELEÇÃO OBRIGATÓRIA ---
         st.markdown("#### 📍 Local de Retirada")
         # Adicionamos "Selecione..." como primeira opção
-        opcoes_retirada = ["Selecione...", "Pq. Guarani", "Itaquera"]
+        opcoes_retirada = ["Selecione...", "Pq. Guarani"]
         loc_ret = st.radio(
             "Escolha onde a cesta será retirada:", 
             opcoes_retirada, 
