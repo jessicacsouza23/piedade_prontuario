@@ -6,40 +6,6 @@ import numpy as np
 import time
 import pytz 
 
-# --- FUNÇÃO DA TRAVA (ÚNICA ADIÇÃO DE LÓGICA) ---
-def verificar_sistema_aberto():
-    fuso = pytz.timezone('America/Sao_Paulo')
-    hoje = datetime.now(fuso).date()
-    
-    # Encontrar o primeiro sábado do mês corrente
-    primeiro_dia_mes = hoje.replace(day=1)
-    # weekday: 0=Seg, 1=Ter, 2=Qua, 3=Qui, 4=Sex, 5=Sáb, 6=Dom
-    dias_para_sabado = (5 - primeiro_dia_mes.weekday() + 7) % 7
-    primeiro_sabado = primeiro_dia_mes + timedelta(days=dias_para_sabado)
-    
-    # Terça-feira que antecede esse sábado específico
-    terca_limite = primeiro_sabado - timedelta(days=4)
-    
-    # Caso especial: Se hoje já passou do primeiro sábado do mês atual, 
-    # significa que estamos calculando a trava para o primeiro sábado do PRÓXIMO mês.
-    if hoje > primeiro_sabado:
-        if primeiro_dia_mes.month == 12:
-            proximo_mes = primeiro_dia_mes.replace(year=primeiro_dia_mes.year + 1, month=1)
-        else:
-            proximo_mes = primeiro_dia_mes.replace(month=primeiro_dia_mes.month + 1)
-            
-        dias_para_sabado = (5 - proximo_mes.weekday() + 7) % 7
-        primeiro_sabado = proximo_mes + timedelta(days=dias_para_sabado)
-        terca_limite = primeiro_sabado - timedelta(days=4)
-    
-    # Bloqueia se: Passou da terça-feira limite E ainda está dentro do período que antecede ou é o próprio sábado
-    # O sistema libera automaticamente no Domingo (primeiro_sabado + 1 dia)
-    if hoje > terca_limite and hoje <= primeiro_sabado:
-        return False, terca_limite, primeiro_sabado
-    return True, terca_limite, primeiro_sabado
-
-st.set_page_config(page_title="Sistema Piedade", layout="wide")
-
 # --- ESTILIZAÇÃO CSS ---
 st.markdown("""
     <style>
@@ -229,13 +195,6 @@ else:
 
     # --- VISÃO: RESERVA ---
     else:
-        # AQUI É APLICAÇÃO DA TRAVA
-        aberto, t_limite, p_sabado = verificar_sistema_aberto()
-        if not aberto:
-            st.error("### 🛑 SISTEMA DE RESERVAS FECHADO")
-            st.info(f"As reservas para o sábado {p_sabado.strftime('%d/%m')} se encerraram na terça-feira ({t_limite.strftime('%d/%m')}). Favor entrar em contato com a irmã Cal. O sistema reabrirá no domingo. ")
-            st.stop()
-
         st.title("📝 Reserva de Cestas")
         f_key, p_key = st.session_state.form_key, st.session_state.p_key
         with st.container(border=True):
