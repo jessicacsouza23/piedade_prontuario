@@ -166,47 +166,53 @@ else:
                 tab_p, tab_n, tab_t = st.tabs(["📋 Prontuários", "🆕 Novos Prontuários", "✅ Histórico"])
 
                 with tab_p:
-                    for _, item in pronts_pend_df.iterrows():
-                        with st.container(border=True):
-                            c1, c2, c3 = st.columns([3, 2, 1])
-                            c1.markdown(f"<div class='nome-header'>Prontuário: {item['num_prontuario']}</div>", unsafe_allow_html=True)
-                            c1.caption(f"📅 {item['data_sistema']} | Solicitante: {item['nome_solicitante']} ({item['tipo_solicitante']} - {item['comum_solicitante']})")
-                            c2.markdown(f"**📦 {int(item['quantidade_cestas'])} Cesta(s)** | 📍 {item['local_retirada']}")
-                            if c3.button("Marcar Lançado", key=f"lp_{item['id']}", use_container_width=True):
-                                supabase.table("registros_piedade").update({"tratado": True}).eq("id", item['id']).execute(); st.rerun()
+                    if not prints_pend_df.empty:
+                        for _, item in prints_pend_df.iterrows():
+                            with st.container(border=True):
+                                c1, c2, c3 = st.columns([3, 2, 1])
+                                c1.markdown(f"<div class='nome-header'>Prontuário: {item['num_prontuario']}</div>", unsafe_allow_html=True)
+                                c1.caption(f"📅 {item['data_sistema']} | Solicitante: {item['nome_solicitante']} ({item['tipo_solicitante']} - {item['comum_solicitante']})")
+                                c2.markdown(f"**📦 {int(item['quantidade_cestas'])} Cesta(s)** | 📍 {item['local_retirada']}")
+                                if c3.button("Marcar Lançado", key=f"lp_{item['id']}", use_container_width=True):
+                                    supabase.table("registros_piedade").update({"tratado": True}).eq("id", item['id']).execute(); st.rerun()
+                    else:
+                        st.info("Nenhum prontuário pendente de lançamento.")
 
                 with tab_n:
-                    for _, item in novos_pend_df.iterrows():
-                        with st.container(border=True):
-                            st.markdown(f"<div class='nome-header'>👤 {item['nome_completo']}</div>", unsafe_allow_html=True)
-                            col1, col2, col3, col4 = st.columns(4)
-                            col1.markdown(f"<span class='label-info'>🎂 Idade</span><br><span class='value-info'>{int(item.get('idade', 0))} anos</span>", unsafe_allow_html=True)
-                            col2.markdown(f"<span class='label-info'>🌊 Batismo</span><br><span class='value-info'>{item.get('tempo_batismo') or '---'}</span>", unsafe_allow_html=True)
-                            col3.markdown(f"<span class='label-info'>💍 Est. Civil</span><br><span class='value-info'>{item.get('estado_civil') or '---'}</span>", unsafe_allow_html=True)
-                            col4.markdown(f"<span class='label-info'>⛪ Comum</span><br><span class='value-info'>{item.get('comum_assistido') or '---'}</span>", unsafe_allow_html=True)
-                            
-                            if item.get('estado_civil') == "Casado(a)":
-                                st.markdown("<div class='section-divider'>👩‍❤️‍👨 Dados do Cônjuge</div>", unsafe_allow_html=True)
-                                cj1, cj2, cj3 = st.columns([2, 1, 1])
-                                cj1.markdown(f"<span class='label-info'>Nome</span><br><span class='value-info'>{item.get('nome_conjuge') or '---'}</span>", unsafe_allow_html=True)
-                                cj2.markdown(f"<span class='label-info'>Idade</span><br><span class='value-info'>{int(item.get('idade_conjuge', 0))} anos</span>", unsafe_allow_html=True)
-                                cj3.markdown(f"<span class='label-info'>Batismo</span><br><span class='value-info'>{item.get('batismo_conjuge') or '---'}</span>", unsafe_allow_html=True)
+                    if not novos_pend_df.empty:
+                        for _, item in novos_pend_df.iterrows():
+                            with st.container(border=True):
+                                st.markdown(f"<div class='nome-header'>👤 {item['nome_completo']}</div>", unsafe_allow_html=True)
+                                col1, col2, col3, col4 = st.columns(4)
+                                col1.markdown(f"<span class='label-info'>🎂 Idade</span><br><span class='value-info'>{int(item.get('idade', 0))} anos</span>", unsafe_allow_html=True)
+                                col2.markdown(f"<span class='label-info'>🌊 Batismo</span><br><span class='value-info'>{item.get('tempo_batismo') or '---'}</span>", unsafe_allow_html=True)
+                                col3.markdown(f"<span class='label-info'>💍 Est. Civil</span><br><span class='value-info'>{item.get('estado_civil') or '---'}</span>", unsafe_allow_html=True)
+                                col4.markdown(f"<span class='label-info'>⛪ Comum</span><br><span class='value-info'>{item.get('comum_assistido') or '---'}</span>", unsafe_allow_html=True)
+                                
+                                if item.get('estado_civil') == "Casado(a)":
+                                    st.markdown("<div class='section-divider'>👩‍❤️‍👨 Dados do Cônjuge</div>", unsafe_allow_html=True)
+                                    cj1, cj2, cj3 = st.columns([2, 1, 1])
+                                    cj1.markdown(f"<span class='label-info'>Nome</span><br><span class='value-info'>{item.get('nome_conjuge') or '---'}</span>", unsafe_allow_html=True)
+                                    cj2.markdown(f"<span class='label-info'>Idade</span><br><span class='value-info'>{int(item.get('idade_conjuge', 0))} anos</span>", unsafe_allow_html=True)
+                                    cj3.markdown(f"<span class='label-info'>Batismo</span><br><span class='value-info'>{item.get('batismo_conjuge') or '---'}</span>", unsafe_allow_html=True)
 
-                            st.markdown("<div class='section-divider'>📍 Localização e Pedido</div>", unsafe_allow_html=True)
-                            end1, end2, end3, end4 = st.columns([2, 1, 1, 1])
-                            end1.markdown(f"<span class='label-info'>Endereço</span><br><span class='value-info'>{item.get('endereco') or '---'}</span>", unsafe_allow_html=True)
-                            end2.markdown(f"<span class='label-info'>Bairro</span><br><span class='value-info'>{item.get('bairro') or '---'}</span>", unsafe_allow_html=True)
-                            end3.markdown(f"<span class='label-info'>CEP</span><br><span class='value-info'>{item.get('cep') or '---'}</span>", unsafe_allow_html=True)
-                            end4.markdown(f"<span class='label-info'>📦 Qtd / Retirada</span><br><span class='value-info'>{int(item.get('quantidade_cestas', 0))} un / {item.get('local_retirada')}</span>", unsafe_allow_html=True)
+                                st.markdown("<div class='section-divider'>📍 Localização e Pedido</div>", unsafe_allow_html=True)
+                                end1, end2, end3, end4 = st.columns([2, 1, 1, 1])
+                                end1.markdown(f"<span class='label-info'>Endereço</span><br><span class='value-info'>{item.get('endereco') or '---'}</span>", unsafe_allow_html=True)
+                                end2.markdown(f"<span class='label-info'>Bairro</span><br><span class='value-info'>{item.get('bairro') or '---'}</span>", unsafe_allow_html=True)
+                                end3.markdown(f"<span class='label-info'>CEP</span><br><span class='value-info'>{item.get('cep') or '---'}</span>", unsafe_allow_html=True)
+                                end4.markdown(f"<span class='label-info'>📦 Qtd / Retirada</span><br><span class='value-info'>{int(item.get('quantidade_cestas', 0))} un / {item.get('local_retirada')}</span>", unsafe_allow_html=True)
 
-                            st.markdown("<div class='section-divider'>📝 Dados do Cadastro</div>", unsafe_allow_html=True)
-                            sol1, sol2, sol3 = st.columns(3)
-                            sol1.markdown(f"<span class='label-info'>Solicitante</span><br><span class='value-info'>{item.get('nome_solicitante')}</span>", unsafe_allow_html=True)
-                            sol2.markdown(f"<span class='label-info'>Cargo / Comum</span><br><span class='value-info'>{item.get('tipo_solicitante')} - {item.get('comum_solicitante')}</span>", unsafe_allow_html=True)
-                            sol3.markdown(f"<span class='label-info'>Data da Reserva</span><br><span class='value-info'>{item.get('data_sistema')}</span>", unsafe_allow_html=True)
+                                st.markdown("<div class='section-divider'>📝 Dados do Cadastro</div>", unsafe_allow_html=True)
+                                sol1, sol2, sol3 = st.columns(3)
+                                sol1.markdown(f"<span class='label-info'>Solicitante</span><br><span class='value-info'>{item.get('nome_solicitante')}</span>", unsafe_allow_html=True)
+                                sol2.markdown(f"<span class='label-info'>Cargo / Comum</span><br><span class='value-info'>{item.get('tipo_solicitante')} - {item.get('comum_solicitante')}</span>", unsafe_allow_html=True)
+                                sol3.markdown(f"<span class='label-info'>Data da Reserva</span><br><span class='value-info'>{item.get('data_sistema')}</span>", unsafe_allow_html=True)
 
-                            if st.button("Concluir Lançamento", key=f"ln_{item['id']}", type="primary", use_container_width=True):
-                                supabase.table("registros_piedade").update({"tratado": True}).eq("id", item['id']).execute(); st.rerun()
+                                if st.button("Concluir Lançamento", key=f"ln_{item['id']}", type="primary", use_container_width=True):
+                                    supabase.table("registros_piedade").update({"tratado": True}).eq("id", item['id']).execute(); st.rerun()
+                    else:
+                        st.info("Nenhum caso novo pendente de lançamento.")
 
                 with tab_t:
                     treatados = df_all[df_all['tratado'] == True]
@@ -215,8 +221,10 @@ else:
                             supabase.table("registros_piedade").delete().eq("tratado", True).execute(); st.rerun()
                         for _, t in tratados.iterrows():
                             st.text(f"✅ {t['nome_completo'] if pd.notna(t['nome_completo']) and t['nome_completo'] != '' else 'Pront. ' + str(t['num_prontuario'])} - {t['data_sistema']}")
+                    else:
+                        st.info("Histórico vazio.")
             else:
-                st.info("Nenhum pedido pendente.")
+                st.info("Nenhum pedido pendente registrado.")
         except Exception as e: st.error(f"Erro: {e}")
 
     # --- VISÃO: RESERVA ---
