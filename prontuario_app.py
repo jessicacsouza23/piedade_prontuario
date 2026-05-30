@@ -129,7 +129,6 @@ else:
                 st.markdown("##### 📍 Logística (Cestas)")
                 m_total, m_ita, m_gua = st.columns(3)
                 m_total.markdown(f"<div class='metric-container'><div class='metric-label'>📦 Total Cestas</div><div class='metric-value'>{int(df_all['quantidade_cestas'].sum())}</div></div>", unsafe_allow_html=True)
-                m_ita.markdown(f"<div class='metric-container'><div class='metric-label'>🏠 Itaquera</div><div class='metric-value'>{int(df_all[df_all['local_retirada'] == 'Itaquera']['quantidade_cestas'].sum())}</div></div>", unsafe_allow_html=True)
                 m_gua.markdown(f"<div class='metric-container'><div class='metric-label'>🌳 Pq. Guarani</div><div class='metric-value'>{int(df_all[df_all['local_retirada'] == 'Pq. Guarani']['quantidade_cestas'].sum())}</div></div>", unsafe_allow_html=True)
 
                 exp1, exp2 = st.columns(2)
@@ -282,7 +281,7 @@ else:
 
         # --- CAMPO DE RETIRADA COM SELEÇÃO OBRIGATÓRIA ---
         st.markdown("#### 📍 Local de Retirada")
-        opcoes_retirada = ["Selecione...", "Pq. Guarani", "Itaquera"]
+        opcoes_retirada = ["Selecione...", "Pq. Guarani"]
         loc_ret = st.radio(
             "Escolha onde a cesta será retirada:", 
             opcoes_retirada, 
@@ -305,7 +304,7 @@ else:
 
             # 3. VALIDAÇÃO: LOCAL DE RETIRADA OBRIGATÓRIO
             if loc_ret == "Selecione...":
-                st.error("⚠️ Você precisa selecionar o **Local de Retirada** (Guarani ou Itaquera)!")
+                st.error("⚠️ Você precisa selecionar o **Local de Retirada** (Guarani)!")
                 st.stop()
             
             # 4. VALIDAÇÃO ESPECÍFICA PARA CASO NOVO
