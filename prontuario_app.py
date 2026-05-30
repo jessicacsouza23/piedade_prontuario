@@ -112,7 +112,7 @@ else:
                 total_novos_dia = len(df_all[df_all['nome_completo'].notna() & (df_all['nome_completo'] != "")])
                 falta_prontuarios = len(pendentes_df[pendentes_df['nome_completo'].isna() | (pendentes_df['nome_completo'] == "")])
                 falta_novos = len(pendentes_df[pendentes_df['nome_completo'].notna() & (pendentes_df['nome_completo'] != "")])
-                pronts_pend_df = pendentes_df[pendentes_df['nome_completo'].isna() | (pendentes_df['nome_completo'] == "")].copy()
+                prints_pend_df = pendentes_df[pendentes_df['nome_completo'].isna() | (pendentes_df['nome_completo'] == "")].copy()
                 novos_pend_df = pendentes_df[pendentes_df['nome_completo'].notna() & (pendentes_df['nome_completo'] != "")].copy()
 
                 st.markdown("##### 📊 Resumo (Totais)")
@@ -198,7 +198,7 @@ else:
                                 supabase.table("registros_piedade").update({"tratado": True}).eq("id", item['id']).execute(); st.rerun()
 
                 with tab_t:
-                    tratados = df_all[df_all['tratado'] == True]
+                    treatados = df_all[df_all['tratado'] == True]
                     if not tratados.empty:
                         if st.button("🚨 LIMPAR HISTÓRICO"):
                             supabase.table("registros_piedade").delete().eq("tratado", True).execute(); st.rerun()
@@ -234,15 +234,22 @@ else:
             qtd_p = cp2.number_input("Qtd", min_value=1, step=1, value=1, key=f"qp_{p_key}")
             if cp3.button("➕ Adicionar"):
                 if num_p:
-                    # NOVA VALIDAÇÃO: Verifica se o que foi digitado é apenas número
                     if not num_p.isdigit():
                         st.error("⚠️ O prontuário deve conter APENAS NÚMEROS.")
                     elif any(x['pront'] == num_p for x in st.session_state.lista_prontuarios):
                         st.error("🚨 Este número já está na lista abaixo.")
                     else:
-                        st.session_state.lista_prontuarios.append({"id": time.time(), "pront": num_p, "qtd": int(qtd_p)})
-                        st.session_state.p_key += 1
-                        st.rerun()
+                        # VALIDAÇÃO EM TEMPO REAL COM O SUPABASE AO ADICIONAR NA LISTA
+                        try:
+                            check = supabase.table("registros_piedade").select("id").eq("num_prontuario", str(num_p)).eq("tratado", False).execute()
+                            if check.data:
+                                st.error(f"🚨 O Prontuário {num_p} já possui uma reserva pendente no banco de dados!")
+                            else:
+                                st.session_state.lista_prontuarios.append({"id": time.time(), "pront": num_p, "qtd": int(qtd_p)})
+                                st.session_state.p_key += 1
+                                st.rerun()
+                        except Exception as e:
+                            st.error(f"Erro ao verificar prontuário: {e}")
                 else:
                     st.warning("Digite um número antes de adicionar.")    
 
@@ -275,8 +282,7 @@ else:
 
         # --- CAMPO DE RETIRADA COM SELEÇÃO OBRIGATÓRIA ---
         st.markdown("#### 📍 Local de Retirada")
-        # Adicionamos "Selecione..." como primeira opção
-        opcoes_retirada = ["Selecione...", "Pq. Guarani"]
+        opcoes_retirada = ["Selecione...", "Pq. Guarani", "Itaquera"]
         loc_ret = st.radio(
             "Escolha onde a cesta será retirada:", 
             opcoes_retirada, 
@@ -297,7 +303,7 @@ else:
                 st.warning("⚠️ Nenhuma reserva detectada! Adicione um Prontuário ou ative 'Caso Novo'.")
                 st.stop()
 
-            # 3. NOVA VALIDAÇÃO: LOCAL DE RETIRADA OBRIGATÓRIO
+            # 3. VALIDAÇÃO: LOCAL DE RETIRADA OBRIGATÓRIO
             if loc_ret == "Selecione...":
                 st.error("⚠️ Você precisa selecionar o **Local de Retirada** (Guarani ou Itaquera)!")
                 st.stop()
@@ -312,20 +318,22 @@ else:
             data_agora = datetime.now(fuso_br).strftime('%Y-%m-%d %H:%M:%S')
             
             try:
-                # Processa Prontuários
+                # Dupla validação antes de inserir no banco
                 for it in st.session_state.lista_prontuarios:
                     check = supabase.table("registros_piedade").select("id").eq("num_prontuario", str(it['pront'])).eq("tratado", False).execute()
                     if check.data: 
-                        st.error(f"🚨 Prontuário {it['pront']} já possui uma reserva pendente!")
+                        st.error(f"🚨 O Prontuário {it['pront']} já possui uma reserva pendente! Remova-o da lista para prosseguir.")
                         st.stop()
                     
+                # Processa Prontuários válidos
+                for it in st.session_state.lista_prontuarios:
                     supabase.table("registros_piedade").insert({
                         "tipo_solicitante": t_sol, 
                         "nome_solicitante": n_sol, 
                         "comum_solicitante": c_sol, 
                         "num_prontuario": str(it['pront']), 
                         "quantidade_cestas": int(it['qtd']), 
-                        "local_retirada": loc_ret, # Aqui vai salvar "Pq. Guarani" ou "Itaquera"
+                        "local_retirada": loc_ret,
                         "data_sistema": data_agora, 
                         "tratado": False
                     }).execute()
