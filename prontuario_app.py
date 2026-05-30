@@ -215,7 +215,7 @@ else:
                         st.info("Nenhum caso novo pendente de lançamento.")
 
                 with tab_t:
-                    treatados = df_all[df_all['tratado'] == True]
+                    tratados = df_all[df_all['tratado'] == True]
                     if not tratados.empty:
                         if st.button("🚨 LIMPAR HISTÓRICO"):
                             supabase.table("registros_piedade").delete().eq("tratado", True).execute(); st.rerun()
