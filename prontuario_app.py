@@ -64,7 +64,7 @@ def bloco_excluir(item_id):
             st.session_state.pop(chave, None)
             st.rerun()
     else:
-        _, col_exc = st.columns([4, 1])
+        _, col_exc = st.columns([5, 2])
         if col_exc.button("🗑️ Excluir", key=f"exc_btn_{item_id}", use_container_width=True):
             st.session_state[chave] = True
             st.rerun()
@@ -163,7 +163,7 @@ else:
                     if not prints_pend_df.empty:
                         for _, item in prints_pend_df.iterrows():
                             with st.container(border=True):
-                                c1, c2, c3 = st.columns([3, 2, 1])
+                                c1, c2, c3 = st.columns([3, 2, 2])
                                 c1.markdown(f"<div class='nome-header'>Prontuário: {item['num_prontuario']}</div>", unsafe_allow_html=True)
                                 c1.caption(f"📅 {item['data_sistema']} | Solicitante: {item['nome_solicitante']} ({item['tipo_solicitante']} - {item['comum_solicitante']})")
                                 c2.markdown(f"**📦 {int(item['quantidade_cestas'])} Cesta(s)**")
