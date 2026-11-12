@@ -45,6 +45,25 @@ def resetar_formulario():
         if any(key.startswith(prefix) for prefix in ["f_", "n_", "c_", "ts_", "inv_"]):
             st.session_state.pop(key)
 
+def bloco_excluir(item_id):
+    """Exclui a reserva pendente de vez (não vai para o histórico). Pede confirmação."""
+    chave = f"exc_{item_id}"
+    if st.session_state.get(chave):
+        st.warning("Excluir esta reserva? Ela será apagada e NÃO será salva no histórico.")
+        b1, b2 = st.columns(2)
+        if b1.button("✅ Sim, excluir", key=f"exc_sim_{item_id}", type="primary", use_container_width=True):
+            supabase.table("registros_piedade").delete().eq("id", item_id).execute()
+            st.session_state.pop(chave, None)
+            st.rerun()
+        if b2.button("Cancelar", key=f"exc_nao_{item_id}", use_container_width=True):
+            st.session_state.pop(chave, None)
+            st.rerun()
+    else:
+        _, col_exc = st.columns([4, 1])
+        if col_exc.button("🗑️ Excluir", key=f"exc_btn_{item_id}", use_container_width=True):
+            st.session_state[chave] = True
+            st.rerun()
+
 # --- LOGIN ---
 if not st.session_state.autenticado:
     st.title("Sistema Piedade - Reservas de Cesta Básica")
@@ -104,17 +123,16 @@ else:
                 s1.markdown(f"<div class='metric-container'><div class='metric-label'>📋 Prontuários a Lançar</div><div class='metric-value' style='color: #E11D48;'>{falta_prontuarios}</div></div>", unsafe_allow_html=True)
                 s2.markdown(f"<div class='metric-container'><div class='metric-label'>🆕 Novos a Lançar</div><div class='metric-value' style='color: #E11D48;'>{falta_novos}</div></div>", unsafe_allow_html=True)
 
-                st.markdown("##### 📍 Logística (Cestas)")
-                m_total, m_ita, m_gua = st.columns(3)
+                st.markdown("##### 📦 Cestas")
+                m_total, _, _ = st.columns(3)
                 m_total.markdown(f"<div class='metric-container'><div class='metric-label'>📦 Total Cestas</div><div class='metric-value'>{int(df_all['quantidade_cestas'].sum())}</div></div>", unsafe_allow_html=True)
-                m_gua.markdown(f"<div class='metric-container'><div class='metric-label'>🌳 Pq. Guarani</div><div class='metric-value'>{int(df_all[df_all['local_retirada'] == 'Pq. Guarani']['quantidade_cestas'].sum())}</div></div>", unsafe_allow_html=True)
 
                 exp1, exp2 = st.columns(2)
                 with exp1:
                     df_p_all = df_all[df_all['nome_completo'].isna() | (df_all['nome_completo'] == "")].copy()
                     if not df_p_all.empty:
-                        cols_p = ['data_sistema', 'nome_solicitante', 'tipo_solicitante', 'comum_solicitante','local_retirada', 'num_prontuario', 'quantidade_cestas']
-                        map_p = {'data_sistema': 'Data', 'nome_solicitante': 'Solicitante', 'tipo_solicitante': 'Cargo', 'comum_solicitante': 'Comum Solicitante', 'local_retirada': 'Local Entrega', 'num_prontuario': 'Nº Prontuário', 'quantidade_cestas': 'Qtd Cestas'}
+                        cols_p = ['data_sistema', 'nome_solicitante', 'tipo_solicitante', 'comum_solicitante', 'num_prontuario', 'quantidade_cestas']
+                        map_p = {'data_sistema': 'Data', 'nome_solicitante': 'Solicitante', 'tipo_solicitante': 'Cargo', 'comum_solicitante': 'Comum Solicitante', 'num_prontuario': 'Nº Prontuário', 'quantidade_cestas': 'Qtd Cestas'}
                         df_p_exp = df_p_all[cols_p].rename(columns=map_p)
                         csv_p = df_p_exp.to_csv(index=False, sep=';', encoding='utf-8-sig').encode('utf-8-sig')
                         st.download_button("📥 EXCEL: TODOS PRONTUÁRIOS", csv_p, f"todos_prontuarios_{datetime.now().strftime('%d_%m')}.csv", "text/csv", type="primary")
@@ -122,8 +140,8 @@ else:
                 with exp2:
                     df_n_all = df_all[df_all['nome_completo'].notna() & (df_all['nome_completo'] != "")].copy()
                     if not df_n_all.empty:
-                        cols_n = ['data_sistema', 'nome_solicitante', 'tipo_solicitante', 'comum_solicitante', 'local_retirada', 'nome_completo', 'idade', 'tempo_batismo', 'estado_civil', 'comum_assistido', 'endereco', 'bairro', 'cep', 'quantidade_cestas', 'nome_conjuge', 'idade_conjuge', 'batismo_conjuge']
-                        map_n = {'data_sistema': 'Data Pedido', 'nome_solicitante': 'Solicitante', 'tipo_solicitante': 'Cargo Solicitante', 'comum_solicitante': 'Comum Solicitante', 'local_retirada': 'Local Entrega', 'nome_completo': 'Nome Assistido', 'idade': 'Idade', 'tempo_batismo': 'Tempo Batismo', 'estado_civil': 'Estado Civil', 'comum_assistido': 'Comum Assistido', 'endereco': 'Endereço', 'bairro': 'Bairro', 'cep': 'CEP', 'quantidade_cestas': 'Qtd Cestas', 'nome_conjuge': 'Nome Cônjuge', 'idade_conjuge': 'Idade Cônjuge', 'batismo_conjuge': 'Batismo Cônjuge'}
+                        cols_n = ['data_sistema', 'nome_solicitante', 'tipo_solicitante', 'comum_solicitante', 'nome_completo', 'idade', 'tempo_batismo', 'estado_civil', 'comum_assistido', 'endereco', 'bairro', 'cep', 'quantidade_cestas', 'nome_conjuge', 'idade_conjuge', 'batismo_conjuge']
+                        map_n = {'data_sistema': 'Data Pedido', 'nome_solicitante': 'Solicitante', 'tipo_solicitante': 'Cargo Solicitante', 'comum_solicitante': 'Comum Solicitante', 'nome_completo': 'Nome Assistido', 'idade': 'Idade', 'tempo_batismo': 'Tempo Batismo', 'estado_civil': 'Estado Civil', 'comum_assistido': 'Comum Assistido', 'endereco': 'Endereço', 'bairro': 'Bairro', 'cep': 'CEP', 'quantidade_cestas': 'Qtd Cestas', 'nome_conjuge': 'Nome Cônjuge', 'idade_conjuge': 'Idade Cônjuge', 'batismo_conjuge': 'Batismo Cônjuge'}
                         df_n_exp = df_n_all[cols_n].rename(columns=map_n)
                         csv_n = df_n_exp.to_csv(index=False, sep=';', encoding='utf-8-sig').encode('utf-8-sig')
                         st.download_button("📥 EXCEL: TODOS CASOS NOVOS", csv_n, f"todos_casos_novos_{datetime.now().strftime('%d_%m')}.csv", "text/csv", type="primary")
@@ -138,9 +156,10 @@ else:
                                 c1, c2, c3 = st.columns([3, 2, 1])
                                 c1.markdown(f"<div class='nome-header'>Prontuário: {item['num_prontuario']}</div>", unsafe_allow_html=True)
                                 c1.caption(f"📅 {item['data_sistema']} | Solicitante: {item['nome_solicitante']} ({item['tipo_solicitante']} - {item['comum_solicitante']})")
-                                c2.markdown(f"**📦 {int(item['quantidade_cestas'])} Cesta(s)** | 📍 {item['local_retirada']}")
+                                c2.markdown(f"**📦 {int(item['quantidade_cestas'])} Cesta(s)**")
                                 if c3.button("Marcar Lançado", key=f"lp_{item['id']}", use_container_width=True):
                                     supabase.table("registros_piedade").update({"tratado": True}).eq("id", item['id']).execute(); st.rerun()
+                                bloco_excluir(item['id'])
                     else:
                         st.info("Nenhum prontuário pendente de lançamento.")
 
@@ -167,7 +186,7 @@ else:
                                 end1.markdown(f"<span class='label-info'>Endereço</span><br><span class='value-info'>{item.get('endereco') or '---'}</span>", unsafe_allow_html=True)
                                 end2.markdown(f"<span class='label-info'>Bairro</span><br><span class='value-info'>{item.get('bairro') or '---'}</span>", unsafe_allow_html=True)
                                 end3.markdown(f"<span class='label-info'>CEP</span><br><span class='value-info'>{item.get('cep') or '---'}</span>", unsafe_allow_html=True)
-                                end4.markdown(f"<span class='label-info'>📦 Qtd / Retirada</span><br><span class='value-info'>{int(item.get('quantidade_cestas', 0))} un / {item.get('local_retirada')}</span>", unsafe_allow_html=True)
+                                end4.markdown(f"<span class='label-info'>📦 Qtd Cestas</span><br><span class='value-info'>{int(item.get('quantidade_cestas', 0))} un</span>", unsafe_allow_html=True)
 
                                 st.markdown("<div class='section-divider'>📝 Dados do Cadastro</div>", unsafe_allow_html=True)
                                 sol1, sol2, sol3 = st.columns(3)
@@ -177,6 +196,7 @@ else:
 
                                 if st.button("Concluir Lançamento", key=f"ln_{item['id']}", type="primary", use_container_width=True):
                                     supabase.table("registros_piedade").update({"tratado": True}).eq("id", item['id']).execute(); st.rerun()
+                                bloco_excluir(item['id'])
                     else:
                         st.info("Nenhum caso novo pendente de lançamento.")
 
@@ -258,16 +278,6 @@ else:
                 n_bai, n_cep = b1.text_input("Bairro:", key=f"bai_{f_key}"), b2.text_input("CEP:", key=f"cep_{f_key}")
                 q_novo = st.number_input("Qtd de Cestas:", min_value=1, step=1, key=f"qn_{f_key}")
 
-        # --- CAMPO DE RETIRADA COM SELEÇÃO OBRIGATÓRIA ---
-        st.markdown("#### 📍 Local de Retirada")
-        opcoes_retirada = ["Selecione...", "Pq. Guarani"]
-        loc_ret = st.radio(
-            "Escolha onde a cesta será retirada:", 
-            opcoes_retirada, 
-            horizontal=True, 
-            key=f"loc_{f_key}"
-        )
-
         st.divider()
 
         if st.button("💾 ENVIAR RESERVA", type="primary", use_container_width=True):
@@ -281,12 +291,7 @@ else:
                 st.warning("⚠️ Nenhuma reserva detectada! Adicione um Prontuário ou ative 'Caso Novo'.")
                 st.stop()
 
-            # 3. VALIDAÇÃO: LOCAL DE RETIRADA OBRIGATÓRIO
-            if loc_ret == "Selecione...":
-                st.error("⚠️ Você precisa selecionar o **Local de Retirada** (Guarani)!")
-                st.stop()
-            
-            # 4. VALIDAÇÃO ESPECÍFICA PARA CASO NOVO
+            # 3. VALIDAÇÃO ESPECÍFICA PARA CASO NOVO
             if is_novo and not n_comp:
                 st.error("⚠️ Você selecionou 'Caso Novo', mas não preencheu o nome do assistido.")
                 st.stop()
@@ -311,7 +316,6 @@ else:
                         "comum_solicitante": c_sol, 
                         "num_prontuario": str(it['pront']), 
                         "quantidade_cestas": int(it['qtd']), 
-                        "local_retirada": loc_ret,
                         "data_sistema": data_agora, 
                         "tratado": False
                     }).execute()
@@ -323,7 +327,7 @@ else:
                         "nome_completo": n_comp, "comum_assistido": c_ast, "quantidade_cestas": int(q_novo), 
                         "idade": int(n_id), "tempo_batismo": n_bat, "estado_civil": n_civ, 
                         "nome_conjuge": n_conj, "idade_conjuge": int(n_conj_id), "batismo_conjuge": n_conj_bat, 
-                        "endereco": n_end, "bairro": n_bai, "cep": n_cep, "local_retirada": loc_ret, 
+                        "endereco": n_end, "bairro": n_bai, "cep": n_cep, 
                         "data_sistema": data_agora, "tratado": False
                     }).execute()
                 
