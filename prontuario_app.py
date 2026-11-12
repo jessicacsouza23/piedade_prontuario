@@ -9,7 +9,7 @@ import pytz
 # --- ESTILIZAÇÃO CSS ---
 st.markdown("""
     <style>
-    .metric-container { background-color: #ffffff; padding: 15px; border-radius: 12px; border: 1px solid #e1e4e8; box-shadow: 0 2px 4px rgba(0,0,0,0.05); text-align: center; margin-bottom: 10px; }
+    .metric-container { height: 120px; display: flex; flex-direction: column; justify-content: center; align-items: center; box-sizing: border-box; background-color: #ffffff; padding: 15px; border-radius: 12px; border: 1px solid #e1e4e8; box-shadow: 0 2px 4px rgba(0,0,0,0.05); text-align: center; margin-bottom: 10px; }
     .metric-value { font-size: 1.8rem; font-weight: 800; color: #1E3A8A; }
     .metric-label { font-size: 0.7rem; font-weight: 600; color: #6B7280; text-transform: uppercase; letter-spacing: 0.5px; }
     .stTabs [data-baseweb="tab-list"] { gap: 10px; }
@@ -133,7 +133,7 @@ else:
                 st.markdown("##### ⏳ Situação do lançamento")
                 r2 = st.columns(4)
                 r2[0].markdown(card_metrica("⏳ A Lançar (Total)", total_pend, cor_pend), unsafe_allow_html=True)
-                r2[1].markdown(card_metrica("📋 Prontuários a Lançar", falta_prontuarios, cor_pront), unsafe_allow_html=True)
+                r2[1].markdown(card_metrica("📋 Pront. a Lançar", falta_prontuarios, cor_pront), unsafe_allow_html=True)
                 r2[2].markdown(card_metrica("🆕 Novos a Lançar", falta_novos, cor_novos), unsafe_allow_html=True)
                 r2[3].markdown(card_metrica("✅ Já Lançados", total_lancados, "#1E3A8A"), unsafe_allow_html=True)
 
