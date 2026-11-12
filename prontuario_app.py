@@ -22,6 +22,11 @@ st.markdown("""
     </style>
     """, unsafe_allow_html=True)
 
+def card_metrica(label, valor, cor="#1E3A8A"):
+    return (f"<div class='metric-container' style='border-top: 4px solid {cor};'>"
+            f"<div class='metric-label'>{label}</div>"
+            f"<div class='metric-value' style='color: {cor};'>{valor}</div></div>")
+
 # --- FUNÇÕES CORE ---
 def inicializar_conexao():
     return create_client(st.secrets["SUPABASE_URL"], st.secrets["SUPABASE_KEY"])
@@ -112,20 +117,25 @@ else:
                 prints_pend_df = pendentes_df[pendentes_df['nome_completo'].isna() | (pendentes_df['nome_completo'] == "")].copy()
                 novos_pend_df = pendentes_df[pendentes_df['nome_completo'].notna() & (pendentes_df['nome_completo'] != "")].copy()
 
-                st.markdown("##### 📊 Resumo (Totais)")
-                c1, c2, c3 = st.columns(3)
-                c1.markdown(f"<div class='metric-container'><div class='metric-label'>📝 Total Geral</div><div class='metric-value'>{total_geral_casos}</div></div>", unsafe_allow_html=True)
-                c2.markdown(f"<div class='metric-container'><div class='metric-label'>📋 Total Prontuários</div><div class='metric-value'>{total_prontuarios_dia}</div></div>", unsafe_allow_html=True)
-                c3.markdown(f"<div class='metric-container'><div class='metric-label'>🆕 Total Novos</div><div class='metric-value'>{total_novos_dia}</div></div>", unsafe_allow_html=True)
+                total_pend = falta_prontuarios + falta_novos
+                total_lancados = len(df_all[df_all['tratado'] == True])
+                cor_pend = "#E11D48" if total_pend > 0 else "#16A34A"
+                cor_pront = "#E11D48" if falta_prontuarios > 0 else "#16A34A"
+                cor_novos = "#E11D48" if falta_novos > 0 else "#16A34A"
 
-                st.markdown("##### ⏳ Trabalho Pendente (A Lançar)")
-                s1, s2 = st.columns(2)
-                s1.markdown(f"<div class='metric-container'><div class='metric-label'>📋 Prontuários a Lançar</div><div class='metric-value' style='color: #E11D48;'>{falta_prontuarios}</div></div>", unsafe_allow_html=True)
-                s2.markdown(f"<div class='metric-container'><div class='metric-label'>🆕 Novos a Lançar</div><div class='metric-value' style='color: #E11D48;'>{falta_novos}</div></div>", unsafe_allow_html=True)
+                st.markdown("##### 📊 Resumo geral")
+                r1 = st.columns(4)
+                r1[0].markdown(card_metrica("📝 Total Geral", total_geral_casos), unsafe_allow_html=True)
+                r1[1].markdown(card_metrica("📋 Prontuários", total_prontuarios_dia), unsafe_allow_html=True)
+                r1[2].markdown(card_metrica("🆕 Casos Novos", total_novos_dia), unsafe_allow_html=True)
+                r1[3].markdown(card_metrica("📦 Total Cestas", int(df_all['quantidade_cestas'].sum())), unsafe_allow_html=True)
 
-                st.markdown("##### 📦 Cestas")
-                m_total, _, _ = st.columns(3)
-                m_total.markdown(f"<div class='metric-container'><div class='metric-label'>📦 Total Cestas</div><div class='metric-value'>{int(df_all['quantidade_cestas'].sum())}</div></div>", unsafe_allow_html=True)
+                st.markdown("##### ⏳ Situação do lançamento")
+                r2 = st.columns(4)
+                r2[0].markdown(card_metrica("⏳ A Lançar (Total)", total_pend, cor_pend), unsafe_allow_html=True)
+                r2[1].markdown(card_metrica("📋 Prontuários a Lançar", falta_prontuarios, cor_pront), unsafe_allow_html=True)
+                r2[2].markdown(card_metrica("🆕 Novos a Lançar", falta_novos, cor_novos), unsafe_allow_html=True)
+                r2[3].markdown(card_metrica("✅ Já Lançados", total_lancados, "#1E3A8A"), unsafe_allow_html=True)
 
                 exp1, exp2 = st.columns(2)
                 with exp1:
@@ -147,7 +157,7 @@ else:
                         st.download_button("📥 EXCEL: TODOS CASOS NOVOS", csv_n, f"todos_casos_novos_{datetime.now().strftime('%d_%m')}.csv", "text/csv", type="primary")
 
                 st.divider()
-                tab_p, tab_n, tab_t = st.tabs(["📋 Prontuários", "🆕 Novos Prontuários", "✅ Histórico"])
+                tab_p, tab_n, tab_t = st.tabs([f"📋 Prontuários ({falta_prontuarios})", f"🆕 Novos Prontuários ({falta_novos})", f"✅ Histórico ({total_lancados})"])
 
                 with tab_p:
                     if not prints_pend_df.empty:
